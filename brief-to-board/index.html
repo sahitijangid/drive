@@ -487,13 +487,13 @@ function viewHome() {
   const steps = [
     ["Brand guideline", guideReady ? "Set. Every research run and image review is checked against it." : "Add your palette, photo style and do/don't rules once. Everything else is scored against it.", guideReady ? "Edit guideline" : "Set up guideline", () => go("guide"), !guideReady],
     ["Brief from growth", "Pull the month's asks straight from the growth tracker sheet, or add a brief by hand.", "Import from sheet", () => go("import"), guideReady],
-    ["Visual research", "Claude turns the brief into 3 on-brand art directions plus ready-to-click searches on Pinterest, Meta Ad Library and Instagram.", null],
-    ["References", "Paste or drop screenshots you collect. Each is colour-matched to your palette and reviewed by Claude against the guideline.", null],
-    ["Mood board", "Pin the best references, generate an art-direction note, export the board as a PNG.", null]
+    ["Visual research", "Claude turns the brief into 3 on-brand art directions, plus Meta Ad Library and Instagram searches to explore.", null],
+    ["References", "Claude's Pinterest picks for each brief, plus any screenshots your team adds, checked against your guideline.", null],
+    ["Like / Pass", "Rate Claude's picks. Claude learns your taste and leans future picks towards it.", "Open library", () => go("library"), false]
   ];
   return [
     dbBanner(),
-    h("div", { class: "spread" }, h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:62ch" }, h("h1", null, "From growth brief to on-brand mood board"), h("p", { class: "muted" }, "Pick a brief on the left, or start one. Research runs on your own Claude account."))),
+    h("div", { class: "spread" }, h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:62ch" }, h("h1", null, "From growth brief to on-brand references"), h("p", { class: "muted" }, "Pick a brief on the left, or start one. Research runs on your own Claude account."))),
     h("div", { class: "panel" }, h("div", { class: "label" }, "How a brief moves through the desk"),
       h("ol", { class: "list", style: "gap:12px;padding-left:20px" }, steps.map(([t, d, cta, fn, primary]) => h("li", null, h("div", { class: "spread", style: "align-items:center" }, h("div", { style: "min-width:0;flex:1 1 300px" }, h("b", null, t), h("p", { class: "muted", style: "font-size:.9rem" }, d)), cta ? h("button", { class: "btn sm" + (primary ? " primary" : ""), type: "button", onclick: fn }, cta) : null))))),
     S.briefs.length ? h("div", { class: "panel" }, h("div", { class: "label" }, "Latest briefs"), h("div", { class: "kv" }, S.briefs.slice(0, 6).map(b => h("div", null, h("a", { href: "#b-" + b.id }, str(b.title, 100) || "Untitled"), h("span", { class: "muted", style: "font-size:.84rem" }, (STATUS[b.status] || STATUS.new)[0] + " · " + (str(b.objective, 40) || "—") + (b.createdAt ? " · " + fmtDate(b.createdAt) : "")))))) : null
@@ -569,10 +569,10 @@ function viewBriefForm(existing) {
 function viewBrief(b) {
   const refs = S.refs.filter(r => r.briefId === b.id); const onBoard = boardItems(b);
   const st = STATUS[b.status] || STATUS.new;
-  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length + curatedFor(b.id).length], ["board", "Mood board", onBoard.length]];
+  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length + curatedFor(b.id).length]];
   if (S.tab === "edit") return viewBriefForm(b);
   if (!tabs.some(t => t[0] === S.tab)) S.tab = "brief";
-  const body = S.tab === "brief" ? tabBrief(b) : S.tab === "research" ? tabResearch(b) : S.tab === "refs" ? tabRefs(b, refs) : tabBoard(b, onBoard);
+  const body = S.tab === "brief" ? tabBrief(b) : S.tab === "research" ? tabResearch(b) : tabRefs(b, refs);
   return [
     dbBanner(),
     h("div", { class: "spread" },
@@ -801,7 +801,7 @@ function tabRefs(b, refs) {
   S.pasteTarget = b;
   const cur = curatedFor(b.id);
   return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
-    h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use; liked images go on the mood board and teach Claude your taste." : "No picks for this brief yet.")), cur.length ? rateSummary(cur.map(c => c.id)) : null),
+    h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use; Claude learns your taste from it." : "No picks for this brief yet.")), cur.length ? rateSummary(cur.map(c => c.id)) : null),
     S.curatedErr ? h("p", { style: "color:var(--bad)" }, S.curatedErr) : null,
     cur.length ? h("div", { class: "refs" }, cur.map(c => curatedCard(c)))
       : h("div", { class: "notice" }, h("div", { style: "display:flex;flex-direction:column;gap:4px;max-width:70ch" }, h("b", null, "Ask Claude for references"), h("span", { style: "font-size:.88rem" }, "In your Claude chat, say “find references for " + str(b.title, 80) + "”. Claude searches Pinterest using this brief's research and your taste profile, then adds the picks here."))),
@@ -869,7 +869,7 @@ async function setRating(key, kind, briefId, val) {
 function rateButtons(key, kind, briefId) {
   const r = S.ratings[key];
   return h("div", { class: "rate", role: "group", "aria-label": "Rate this reference" },
-    h("button", { type: "button", class: "like", "aria-pressed": r === "like" ? "true" : "false", title: "Like: goes on the mood board and teaches Claude your taste", onclick: () => setRating(key, kind, briefId, "like") }, svgIcon(ICON.up), r === "like" ? "Liked" : "Like"),
+    h("button", { type: "button", class: "like", "aria-pressed": r === "like" ? "true" : "false", title: "Like: teaches Claude your taste", onclick: () => setRating(key, kind, briefId, "like") }, svgIcon(ICON.up), r === "like" ? "Liked" : "Like"),
     h("button", { type: "button", class: "pass", "aria-pressed": r === "pass" ? "true" : "false", title: "Pass: Claude will suggest less of this", onclick: () => setRating(key, kind, briefId, "pass") }, svgIcon(ICON.down), r === "pass" ? "Passed" : "Pass"));
 }
 function rateSummary(keys) {
