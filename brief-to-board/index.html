@@ -809,6 +809,7 @@ function tabRefs(b, refs) {
   const cur = curatedFor(b.id);
   return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
     h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use; liked images go on the mood board and teach Claude your taste." : "No picks for this brief yet.")), cur.length ? rateSummary(cur.map(c => c.id)) : null),
+    S.curatedErr ? h("p", { style: "color:var(--bad)" }, S.curatedErr) : null,
     cur.length ? h("div", { class: "refs" }, cur.map(c => curatedCard(c)))
       : h("div", { class: "notice" }, h("div", { style: "display:flex;flex-direction:column;gap:4px;max-width:70ch" }, h("b", null, "Ask Claude for references"), h("span", { style: "font-size:.88rem" }, "In your Claude chat, say “find references for " + str(b.title, 80) + "”. Claude searches Pinterest using this brief's research and your taste profile, then adds the picks here."))),
     h("details", { class: "panel", open: (S.ownOpen[b.id] ?? refs.length > 0) ? true : null, ontoggle: (e) => { S.ownOpen[b.id] = e.currentTarget.open; }, style: "margin-top:8px" },
@@ -1243,8 +1244,8 @@ readHash(); render(true);
   if (sample) { try { S.limits = await sample.limits(); } catch {} }
   if (!db) { S.loaded.guide = true; render(true); return; }
   const timer = setTimeout(() => { if (!S.loaded.briefs) { S.loaded.briefs = true; S.loaded.guide = true; render(true); } }, 10000);
-  db.collection("curated").orderBy("order", "asc").limit(2000).onSnapshot(s => { S.curated = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {});
-  if (S.me?.id) db.collection("data/users/" + S.me.id).limit(5000).onSnapshot(s => {
+  db.collection("curated").orderBy("order", "asc").limit(1000).onSnapshot(s => { S.curated = s.docs.map(d => ({ id: d.id, ...d.data() })); S.curatedErr = ""; render(); }, () => { S.curatedErr = "Claude's picks couldn't load. Reload the page to try again."; render(); });
+  if (S.me?.id) db.collection("data/users/" + S.me.id).limit(1000).onSnapshot(s => {
     const r = {}; let taste = null;
     for (const d of s.docs) { const x = d.data(); if (d.id === "taste") taste = x; else if (d.id.startsWith("r_") && (x.rating === "like" || x.rating === "pass")) r[d.id.slice(2)] = x.rating; }
     S.ratings = r; S.taste = taste; render();
