@@ -1,0 +1,913 @@
+<title>Brief to Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a two-pane studio desk. Brief queue on the left, the working surface (brief, research, references, board) on the right. Stacks at phone width. */
+:root {
+  --bg: #EDEFEA; --surface: #FFFFFF; --sunk: #F5F6F3; --ink: #16191C; --muted: #5C645E; --line: #D3D8D0;
+  --accent: #2F45C8; --accent-ink: #FFFFFF; --accent-soft: #E3E7FA;
+  --ok: #1D7447; --ok-soft: #DDF1E5; --warn: #94600A; --warn-soft: #F8ECD2; --bad: #A8231C; --bad-soft: #F8DEDB;
+  --pin: #C8102E; --meta: #1463D8; --ig: #B0306F; --other: #5C645E;
+  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111412; --surface: #1A1E1B; --sunk: #151816; --ink: #E8EBE6; --muted: #98A199; --line: #2C332E;
+  --accent: #93A2FF; --accent-ink: #0C1033; --accent-soft: #232A4E;
+  --ok: #62C793; --ok-soft: #173326; --warn: #E2B04F; --warn-soft: #3A2E14; --bad: #F08A80; --bad-soft: #3D1D1A;
+  --pin: #FF7486; --meta: #79AEFF; --ig: #F282BF; --other: #98A199; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111412; --surface: #1A1E1B; --sunk: #151816; --ink: #E8EBE6; --muted: #98A199; --line: #2C332E;
+  --accent: #93A2FF; --accent-ink: #0C1033; --accent-soft: #232A4E;
+  --ok: #62C793; --ok-soft: #173326; --warn: #E2B04F; --warn-soft: #3A2E14; --bad: #F08A80; --bad-soft: #3D1D1A;
+  --pin: #FF7486; --meta: #79AEFF; --ig: #F282BF; --other: #98A199; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.15; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 1.9rem; } h2 { font-size: 1.35rem; } h3 { font-size: 1.05rem; }
+p { margin: 0; }
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: .82em; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--muted); }
+
+.app { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+.side { border-right: 1px solid var(--line); background: var(--sunk); padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; display: flex; flex-direction: column; gap: 18px; }
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.brand h1 { font-size: 1.45rem; }
+.brand h1 span { color: var(--accent); }
+.main { min-width: 0; padding-block: 24px 64px; padding-left: 28px; padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; display: flex; flex-direction: column; gap: 22px; }
+
+.navlist { display: flex; flex-direction: column; gap: 4px; }
+.navitem { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; background: none; text-align: left; cursor: pointer; width: 100%; }
+.navitem:hover { background: var(--surface); }
+.navitem[aria-current="true"] { background: var(--surface); border-color: var(--line); }
+.navitem .t { font-weight: 600; overflow-wrap: anywhere; }
+.navitem .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: .8rem; color: var(--muted); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 9px 14px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-weight: 600; font-size: .9rem; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn.ghost:hover { color: var(--ink); background: var(--surface); }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.sm { padding: 5px 10px; font-size: .82rem; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spread { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: .74rem; font-weight: 600; background: var(--sunk); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.pill.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.pill.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.pill.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.src { display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 600; }
+.src::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.src.pinterest { color: var(--pin); } .src.meta { color: var(--meta); } .src.instagram { color: var(--ig); } .src.other { color: var(--other); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { background: none; border: none; padding: 10px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab .n { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+
+.form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+.field label, .field .lab { font-weight: 600; font-size: .86rem; }
+.field .hint { font-size: .78rem; color: var(--muted); }
+input[type=text], input[type=date], input:not([type]), select, textarea { width: 100%; border: 1px solid var(--line); background: var(--sunk); border-radius: 8px; padding: 9px 11px; }
+textarea { resize: vertical; min-height: 76px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; background: var(--surface); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--sunk); border-radius: 99px; padding: 5px 12px; cursor: pointer; font-size: .84rem; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px 22px; }
+.kv > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kv .v { overflow-wrap: anywhere; white-space: pre-wrap; }
+
+.notice { border: 1px dashed var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; background: var(--sunk); }
+.notice.warn { border-color: var(--warn); background: var(--warn-soft); }
+.empty { text-align: center; padding: 48px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--muted); }
+.empty h2 { color: var(--ink); }
+
+.swatches { display: flex; gap: 0; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); height: 26px; }
+.swatches > span { flex: 1; min-width: 14px; }
+.palette-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.pal { display: flex; align-items: center; gap: 8px; font-size: .84rem; }
+.pal i { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); display: block; }
+
+.dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+.dir { border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); min-width: 0; }
+.dir .k { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--muted); }
+.dir ul, .list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.srccol { border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.q { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--sunk); text-decoration: none; color: var(--ink); border: 1px solid transparent; }
+.q:hover { border-color: var(--line); }
+.q b { font-weight: 600; overflow-wrap: anywhere; }
+.q b::after { content: " \2197"; color: var(--muted); font-weight: 400; }
+.q span { font-size: .78rem; color: var(--muted); }
+
+.drop { border: 2px dashed var(--line); border-radius: var(--r); padding: 22px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; background: var(--sunk); cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 640px; cursor: default; }
+.drop .controls > * { flex: 1 1 180px; }
+.refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.ref { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.ref.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ref .img { background: var(--sunk); aspect-ratio: 4 / 5; max-width: 100%; display: flex; align-items: center; justify-content: center; }
+.ref .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ref .body { padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: .86rem; }
+.ref .body ul { margin: 0; padding-left: 16px; }
+
+.board { columns: 3 240px; column-gap: 12px; }
+.board figure { break-inside: avoid; margin: 0 0 12px; border-radius: 8px; overflow: hidden; background: var(--sunk); position: relative; }
+.board figure img { width: 100%; display: block; }
+.board figcaption { padding: 8px 10px; font-size: .8rem; display: flex; flex-direction: column; gap: 2px; }
+.boardhead { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; }
+.an { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 22px; }
+.an > div { display: flex; flex-direction: column; gap: 4px; }
+
+.status { font-size: .86rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.spin { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s .8s linear infinite; flex: none; }
+@keyframes s { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.toast { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: .88rem; z-index: 20; max-width: calc(100vw - 32px); }
+.palrow { display: grid; grid-template-columns: 44px 120px minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.palrow input[type=color] { width: 44px; height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); padding: 2px; }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side { border-right: none; border-bottom: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .navlist.briefs { max-height: 260px; overflow-y: auto; }
+  .main { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .sources, .boardhead { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .form { grid-template-columns: minmax(0, 1fr); }
+  .palrow { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .palrow .wide { grid-column: 1 / -1; }
+  h1 { font-size: 1.55rem; }
+}
+</style>
+
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand">
+      <h1>Brief <span>→</span> Board</h1>
+      <p class="muted" style="font-size:.84rem">Performance ad research desk</p>
+    </div>
+    <button class="btn primary" id="newBriefBtn" type="button">+ New brief</button>
+    <div class="navlist">
+      <button class="navitem" id="guideNav" type="button">
+        <span class="t">Brand guideline</span>
+        <span class="meta" id="guideMeta">Not set up yet</span>
+      </button>
+    </div>
+    <div class="label">Briefs</div>
+    <div class="navlist briefs" id="briefList"><p class="muted" style="font-size:.86rem">Loading briefs…</p></div>
+  </aside>
+  <main class="main"><div class="wrap" id="view"></div></main>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+// ---------- constants ----------
+const OBJECTIVES = ["Conversions / sales", "App installs", "Lead generation", "Trial sign-ups", "Retargeting", "Awareness / reach", "Engagement"];
+const PLATFORMS = ["Meta feed", "Instagram feed", "Stories / Reels", "Pinterest", "Google Display", "YouTube"];
+const FORMATS = ["1:1", "4:5", "9:16", "1.91:1", "16:9", "2:3 (Pinterest)"];
+const MARKETS = [["ALL", "All markets"], ["IN", "India"], ["US", "United States"], ["GB", "United Kingdom"], ["AE", "UAE"], ["SG", "Singapore"], ["AU", "Australia"], ["CA", "Canada"], ["DE", "Germany"]];
+const SOURCES = [["pinterest", "Pinterest"], ["meta", "Meta Ad Library"], ["instagram", "Instagram"], ["other", "Other"]];
+const SRC_LABEL = Object.fromEntries(SOURCES);
+const STATUS = { new: ["New", ""], researched: ["Researched", "accent"], board: ["Board ready", "ok"] };
+
+const EXAMPLE_BRIEF = {
+  title: "Example: New Year 3-month membership push",
+  product: "3-month gym + group-class membership, 25% off launch price",
+  objective: "Conversions / sales",
+  audience: "25–40 working professionals in metro cities who lapsed on fitness last year; motivated but short on time",
+  market: "ALL",
+  platforms: ["Meta feed", "Stories / Reels", "Instagram feed"],
+  formats: ["4:5", "9:16"],
+  message: "Restart without the pressure: classes that fit before or after work",
+  cta: "Join now",
+  mandatories: "Show offer % and price; logo top-left; no before/after body shots; T&C line",
+  mood: "energetic, warm, real people, morning light, community",
+  competitors: "boutique studios, big-box gym chains, home-workout apps",
+  references: "",
+  kpi: "CPA under target, CTR > 1.2%",
+  due: ""
+};
+
+// ---------- state ----------
+const S = {
+  db: null, user: null, sample: null, assets: null, downloads: null,
+  me: null, canEdit: false, canWrite: true, limits: null,
+  guide: null, briefs: [], refs: [], loaded: { briefs: false, refs: false, guide: false },
+  view: "home", tab: "brief", renderedKey: "",
+  busy: {}, ctl: {}, err: {}, progress: {},
+  upload: { source: "pinterest", link: "", note: "", queue: 0 },
+  blobCache: new Map(), confirmDelete: null, profiles: {}
+};
+
+// ---------- helpers ----------
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+    else if (k === "value" || k === "checked" || k === "disabled" || k === "selected") e[k] = v;
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of kids.flat(Infinity)) { if (c == null || c === false) continue; e.append(c instanceof Node ? c : String(c)); }
+  return e;
+}
+const $ = (id) => document.getElementById(id);
+const str = (v, max = 4000) => (typeof v === "string" ? v : v == null ? "" : String(v)).slice(0, max);
+const arr = (v) => Array.isArray(v) ? v : [];
+const safeUrl = (u) => { const s = str(u).trim(); return /^https:\/\//i.test(s) ? s : null; };
+const isHex = (s) => /^#[0-9a-f]{6}$/i.test(str(s).trim());
+const fmtDate = (ms) => { if (!ms) return ""; try { return new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch { return ""; } };
+let toastT;
+function toast(msg) { document.querySelector(".toast")?.remove(); const t = h("div", { class: "toast", role: "status" }, msg); document.body.append(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 3200); }
+function sampleErr(e) {
+  const c = e?.code;
+  if (c === "not_granted" || c === "sampling_disabled") return "Claude isn't allowed for this page. Allow it from the artifact's permissions to run research.";
+  if (c === "rate_limited") return e.reason === "usage_limit" ? "You've reached your Claude usage limit. Try again later." : "Too many requests at once. Wait a minute and try again.";
+  if (c === "invalid_json") return "Claude's answer came back in the wrong shape. Try again.";
+  if (c === "image_rejected") return "One of the images couldn't be read. Remove it or try a different file.";
+  if (c === "images_unavailable") return "This view can't send images to Claude. Open the page on claude.ai in a browser.";
+  if (c === "refused") return "Claude declined this request. Rephrase the brief and try again.";
+  if (c === "prompt_too_large") return "Too much text for one request. Shorten the brief or guideline.";
+  if (c === "session_expired") return "Your session expired. Sign in again.";
+  return "Something went wrong reaching Claude. Try again.";
+}
+
+// ---------- colour science ----------
+function hexToRgb(hx) { const n = parseInt(hx.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgbToHex([r, g, b]) { return "#" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase(); }
+function rgbToLab([r, g, b]) {
+  const f = (c) => { c /= 255; return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92; };
+  const R = f(r), G = f(g), B = f(b);
+  let x = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047, y = R * 0.2126 + G * 0.7152 + B * 0.0722, z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+  const p = (t) => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  x = p(x); y = p(y); z = p(z);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+function extractColors(source, w, hgt) {
+  const c = document.createElement("canvas"); const sz = 72; const sc = Math.min(1, sz / Math.max(w, hgt));
+  c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(hgt * sc));
+  const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(source, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height).data; const buckets = new Map(); let total = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 128) continue;
+    const key = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4);
+    const b = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0 }; b.r += d[i]; b.g += d[i + 1]; b.b += d[i + 2]; b.n++; buckets.set(key, b); total++;
+  }
+  const cand = [...buckets.values()].map(b => ({ rgb: [b.r / b.n, b.g / b.n, b.b / b.n], n: b.n })).sort((a, b) => b.n - a.n);
+  const picked = [];
+  for (const cnd of cand) {
+    const lab = rgbToLab(cnd.rgb); const near = picked.find(p => dE(p.lab, lab) < 14);
+    if (near) near.n += cnd.n; else if (picked.length < 8) picked.push({ ...cnd, lab });
+  }
+  return picked.sort((a, b) => b.n - a.n).slice(0, 6).map(p => ({ hex: rgbToHex(p.rgb), w: +(p.n / Math.max(1, total)).toFixed(3) }));
+}
+function paletteFit(colors) {
+  const pal = arr(S.guide?.palette).map(p => p.hex).filter(isHex);
+  if (!pal.length || !arr(colors).length) return null;
+  const labs = pal.map(hx => rgbToLab(hexToRgb(hx)));
+  let score = 0, tw = 0;
+  for (const c of colors) {
+    if (!isHex(c.hex)) continue; const lab = rgbToLab(hexToRgb(c.hex)); const chroma = Math.hypot(lab[1], lab[2]);
+    const d = Math.min(...labs.map(l => dE(l, lab)));
+    const s = d < 16 ? 1 : d < 30 ? 0.55 : chroma < 12 ? 0.85 : 0;
+    score += s * c.w; tw += c.w;
+  }
+  return tw ? Math.round(score / tw * 100) : null;
+}
+const fitPill = (n) => n == null ? null : h("span", { class: "pill " + (n >= 70 ? "ok" : n >= 45 ? "warn" : "bad"), title: "Share of the image's colour that sits on your brand palette or neutrals" }, "Palette fit " + n + "%");
+const swatchBar = (colors) => h("div", { class: "swatches", "aria-label": "Dominant colours" }, arr(colors).filter(c => isHex(c.hex || c)).map(c => h("span", { style: "background:" + (c.hex || c) + ";flex:" + (c.w ? Math.max(.4, c.w * 10) : 1), title: c.hex || c })));
+
+// ---------- guide serialisation for prompts ----------
+function guideText() {
+  const g = S.guide; if (!g) return "(No brand guideline has been set up. Use sensible, premium, clean performance-ad conventions and say so.)";
+  const lines = [];
+  if (g.name) lines.push("Brand: " + g.name);
+  const pal = arr(g.palette).filter(p => isHex(p.hex));
+  if (pal.length) lines.push("Palette: " + pal.map(p => `${p.hex} ${str(p.name, 40)}${p.role ? " (" + str(p.role, 60) + ")" : ""}`).join("; "));
+  for (const [k, lab] of [["photography", "Photography style"], ["lighting", "Lighting"], ["casting", "People / casting"], ["composition", "Composition & framing"], ["typography", "Type on image"], ["logo", "Logo usage"], ["tone", "Tone & mood"]]) if (g[k]) lines.push(lab + ": " + str(g[k], 1500));
+  if (arr(g.dos).length) lines.push("Always: " + g.dos.map(x => str(x, 200)).join(" | "));
+  if (arr(g.donts).length) lines.push("Never: " + g.donts.map(x => str(x, 200)).join(" | "));
+  return lines.join("\n");
+}
+function briefText(b) {
+  return [["Campaign", b.title], ["Product / offer", b.product], ["Objective", b.objective], ["Audience", b.audience], ["Market", b.market], ["Placements", arr(b.platforms).join(", ")], ["Formats", arr(b.formats).join(", ")], ["Key message", b.message], ["CTA", b.cta], ["Mandatories", b.mandatories], ["Mood words", b.mood], ["Competitors / reference brands", b.competitors], ["Reference links", b.references], ["KPI", b.kpi]]
+    .filter(([, v]) => str(v).trim()).map(([k, v]) => k + ": " + str(v, 1500)).join("\n");
+}
+
+// ---------- links ----------
+const pinUrl = (q) => "https://www.pinterest.com/search/pins/?q=" + encodeURIComponent(q);
+const metaUrl = (q, c) => "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=" + encodeURIComponent(c || "ALL") + "&q=" + encodeURIComponent(q) + "&search_type=keyword_unordered&media_type=all";
+const igUrl = (tag) => { const t = str(tag).replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, ""); return t ? "https://www.instagram.com/explore/tags/" + encodeURIComponent(t) + "/" : null; };
+
+// ---------- routing ----------
+function go(view, tab) { S.view = view; if (tab) S.tab = tab; S.confirmDelete = null; const hash = view === "home" ? "" : view; try { if (location.hash.slice(1) !== hash) history.replaceState(null, "", hash ? "#" + hash : location.pathname + location.search); } catch {} render(true); }
+function readHash() { const h0 = (location.hash || "").slice(1); if (h0 === "guide" || h0 === "new") S.view = h0; else if (/^b-[A-Za-z0-9_-]+$/.test(h0)) S.view = h0; }
+window.addEventListener("hashchange", () => { readHash(); render(true); });
+
+// ---------- sidebar ----------
+function renderSide() {
+  const g = S.guide; const gm = $("guideMeta");
+  gm.textContent = "";
+  if (!S.loaded.guide) gm.append("Loading…");
+  else if (g && (arr(g.palette).length || g.photography)) gm.append(h("span", { class: "pill ok" }, "Active"), " " + arr(g.palette).length + " colours · " + (arr(g.dos).length + arr(g.donts).length) + " rules");
+  else gm.append(h("span", { class: "pill warn" }, "Set up first"));
+  $("guideNav").setAttribute("aria-current", S.view === "guide" ? "true" : "false");
+  const list = $("briefList"); list.textContent = "";
+  if (!S.loaded.briefs) { list.append(h("p", { class: "muted", style: "font-size:.86rem" }, S.db === null && S.dbChecked ? "Sign in to claude.ai to see the team's briefs." : "Loading briefs…")); return; }
+  if (!S.briefs.length) { list.append(h("p", { class: "muted", style: "font-size:.86rem" }, "No briefs yet. Growth can add one with “New brief”.")); return; }
+  for (const b of S.briefs) {
+    const st = STATUS[b.status] || STATUS.new; const nRefs = S.refs.filter(r => r.briefId === b.id).length;
+    list.append(h("button", { class: "navitem", type: "button", "aria-current": S.view === "b-" + b.id ? "true" : "false", onclick: () => go("b-" + b.id, "brief") },
+      h("span", { class: "t" }, str(b.title, 120) || "Untitled brief"),
+      h("span", { class: "meta" }, h("span", { class: "pill " + st[1] }, st[0]), str(b.objective, 40), nRefs ? "· " + nRefs + " refs" : null, b.due ? "· due " + b.due : null)));
+  }
+}
+
+// ---------- main render ----------
+function render(force) {
+  renderSide();
+  const key = S.view + "|" + S.tab;
+  // Views with editable forms render once per entry so typing is never wiped by live updates.
+  const formView = S.view === "guide" || S.view === "new" || (S.view.startsWith("b-") && S.tab === "edit");
+  if (!force && formView && S.renderedKey === key) return;
+  const v = $("view"); const y = window.scrollY; v.textContent = "";
+  S.renderedKey = key;
+  if (S.view === "guide") v.append(...viewGuide());
+  else if (S.view === "new") v.append(...viewBriefForm(null));
+  else if (S.view.startsWith("b-")) {
+    const b = S.briefs.find(x => "b-" + x.id === S.view);
+    if (!b) v.append(S.loaded.briefs ? h("div", { class: "panel empty" }, h("h2", null, "Brief not found"), h("p", null, "It may have been deleted."), h("button", { class: "btn", type: "button", onclick: () => go("home") }, "Back to briefs")) : h("div", { class: "status" }, h("span", { class: "spin" }), "Loading brief…"));
+    else v.append(...viewBrief(b));
+  } else v.append(...viewHome());
+  if (!force) window.scrollTo(0, y);
+}
+
+function dbBanner() {
+  if (S.db || !S.dbChecked) return null;
+  return h("div", { class: "notice warn" }, h("div", null, h("b", null, "Shared workspace unavailable. "), "Open this page on claude.ai while signed in to save briefs, research and references for your team."));
+}
+
+// ---------- home ----------
+function viewHome() {
+  const guideReady = S.guide && (arr(S.guide.palette).length || S.guide.photography);
+  const steps = [
+    ["Brand guideline", guideReady ? "Set. Every research run and image review is checked against it." : "Add your palette, photo style and do/don't rules once. Everything else is scored against it.", guideReady ? "Edit guideline" : "Set up guideline", () => go("guide"), !guideReady],
+    ["Brief from growth", "Campaign, audience, placements, formats, offer and mandatories.", "New brief", () => go("new"), guideReady],
+    ["Visual research", "Claude turns the brief into 3 on-brand art directions plus ready-to-click searches on Pinterest, Meta Ad Library and Instagram.", null],
+    ["References", "Paste or drop screenshots you collect. Each is colour-matched to your palette and reviewed by Claude against the guideline.", null],
+    ["Mood board", "Pin the best references, generate an art-direction note, export the board as a PNG.", null]
+  ];
+  return [
+    dbBanner(),
+    h("div", { class: "spread" }, h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:62ch" }, h("h1", null, "From growth brief to on-brand mood board"), h("p", { class: "muted" }, "Pick a brief on the left, or start one. Research runs on your own Claude account."))),
+    h("div", { class: "panel" }, h("div", { class: "label" }, "How a brief moves through the desk"),
+      h("ol", { class: "list", style: "gap:12px;padding-left:20px" }, steps.map(([t, d, cta, fn, primary]) => h("li", null, h("div", { class: "spread", style: "align-items:center" }, h("div", { style: "min-width:0;flex:1 1 300px" }, h("b", null, t), h("p", { class: "muted", style: "font-size:.9rem" }, d)), cta ? h("button", { class: "btn sm" + (primary ? " primary" : ""), type: "button", onclick: fn }, cta) : null))))),
+    S.briefs.length ? h("div", { class: "panel" }, h("div", { class: "label" }, "Latest briefs"), h("div", { class: "kv" }, S.briefs.slice(0, 6).map(b => h("div", null, h("a", { href: "#b-" + b.id }, str(b.title, 100) || "Untitled"), h("span", { class: "muted", style: "font-size:.84rem" }, (STATUS[b.status] || STATUS.new)[0] + " · " + (str(b.objective, 40) || "—") + (b.createdAt ? " · " + fmtDate(b.createdAt) : "")))))) : null
+  ];
+}
+
+// ---------- brief form ----------
+function chipGroup(id, options, selected) {
+  const sel = new Set(arr(selected));
+  return h("div", { class: "chips", id, role: "group" }, options.map(o => h("button", { type: "button", class: "chip", "aria-pressed": sel.has(o) ? "true" : "false", "data-v": o, onclick: (e) => { const b = e.currentTarget; b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true"); } }, o)));
+}
+const chipVals = (id) => [...document.querySelectorAll("#" + id + " .chip[aria-pressed=true]")].map(b => b.dataset.v);
+
+function viewBriefForm(existing) {
+  const b = existing || {};
+  const f = (id, label, opts = {}) => h("div", { class: "field" + (opts.full ? " full" : "") },
+    h("label", { for: id }, label + (opts.req ? " *" : "")),
+    opts.area ? h("textarea", { id, rows: opts.rows || 3, placeholder: opts.ph || "", value: str(b[opts.key || id.replace("bf_", "")]) }) :
+      h("input", { id, type: opts.type || "text", placeholder: opts.ph || "", value: str(b[opts.key || id.replace("bf_", "")]) }),
+    opts.hint ? h("span", { class: "hint" }, opts.hint) : null);
+  const msg = h("p", { class: "status", "aria-live": "polite" });
+  const fill = (src) => {
+    for (const k of ["title", "product", "audience", "message", "cta", "mandatories", "mood", "competitors", "references", "kpi", "due"]) { const el = $("bf_" + k); if (el) el.value = str(src[k]); }
+    $("bf_objective").value = src.objective || OBJECTIVES[0]; $("bf_market").value = src.market || "ALL";
+    for (const [gid, vals] of [["bf_platforms", src.platforms], ["bf_formats", src.formats]]) document.querySelectorAll("#" + gid + " .chip").forEach(c => c.setAttribute("aria-pressed", arr(vals).includes(c.dataset.v) ? "true" : "false"));
+  };
+  const save = async () => {
+    const data = {};
+    for (const k of ["title", "product", "audience", "message", "cta", "mandatories", "mood", "competitors", "references", "kpi", "due"]) data[k] = str($("bf_" + k).value, 3000).trim();
+    data.objective = $("bf_objective").value; data.market = $("bf_market").value;
+    data.platforms = chipVals("bf_platforms"); data.formats = chipVals("bf_formats");
+    if (!data.title) { msg.textContent = "Give the brief a campaign name."; $("bf_title").focus(); return; }
+    if (!S.db) { msg.textContent = "Can't save: the shared workspace isn't available in this view."; return; }
+    msg.textContent = "Saving…";
+    try {
+      if (existing) { await S.db.doc("briefs/" + existing.id).update({ ...data, updatedAt: Date.now() }); toast("Brief updated"); go("b-" + existing.id, "brief"); }
+      else { const ref = await S.db.collection("briefs").add({ ...data, status: "new", createdAt: Date.now(), createdBy: S.me?.id || null }); toast("Brief saved"); go("b-" + ref.id, "brief"); }
+    } catch (e) { msg.textContent = e?.code === "invalid_argument" ? "You don't have permission to save briefs. Ask the owner for Contributor access." : "Couldn't save. Check your connection and try again."; }
+  };
+  return [
+    dbBanner(),
+    h("div", { class: "spread" }, h("div", null, h("div", { class: "label" }, existing ? "Edit brief" : "New brief"), h("h1", null, existing ? str(existing.title, 120) : "Performance marketing brief")),
+      existing ? null : h("button", { class: "btn ghost sm", type: "button", onclick: () => { fill(EXAMPLE_BRIEF); msg.textContent = "Example loaded. Replace it with the real brief before saving."; } }, "Load example brief")),
+    h("div", { class: "panel" },
+      h("div", { class: "form" },
+        f("bf_title", "Campaign name", { req: true, full: true, ph: "e.g. Monsoon fitness offer, Bengaluru" }),
+        f("bf_product", "Product / offer", { ph: "What are we selling, and at what price or offer?" }),
+        h("div", { class: "field" }, h("label", { for: "bf_objective" }, "Objective"), h("select", { id: "bf_objective" }, OBJECTIVES.map(o => h("option", { value: o, selected: (b.objective || OBJECTIVES[0]) === o }, o)))),
+        f("bf_audience", "Audience", { area: true, full: true, ph: "Who, where, what they care about, what stops them buying" }),
+        h("div", { class: "field" }, h("span", { class: "lab" }, "Placements"), chipGroup("bf_platforms", PLATFORMS, b.platforms)),
+        h("div", { class: "field" }, h("span", { class: "lab" }, "Formats / aspect ratios"), chipGroup("bf_formats", FORMATS, b.formats)),
+        f("bf_message", "Key message", { area: true, rows: 2, ph: "The one thing the ad must say" }),
+        f("bf_mandatories", "Mandatories", { area: true, rows: 2, ph: "Offer text, legal line, logo, product shots that must appear" }),
+        f("bf_cta", "CTA", { ph: "Sign up, Book a free trial…" }),
+        f("bf_kpi", "KPI / success metric", { ph: "CPA, CTR, ROAS target" }),
+        f("bf_mood", "Mood words", { ph: "energetic, calm, premium, playful…" }),
+        h("div", { class: "field" }, h("label", { for: "bf_market" }, "Market"), h("select", { id: "bf_market" }, MARKETS.map(([v, l]) => h("option", { value: v, selected: (b.market || "ALL") === v }, l))), h("span", { class: "hint" }, "Sets the country filter on Meta Ad Library links.")),
+        f("bf_competitors", "Competitors / brands to study", { area: true, rows: 2, ph: "Names to look up in Meta Ad Library" }),
+        f("bf_references", "Reference links from growth", { area: true, rows: 2, ph: "Past winning ads, landing page, inspiration" }),
+        f("bf_due", "Due date", { type: "date" })),
+      h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: save }, existing ? "Save changes" : "Save brief"), h("button", { class: "btn ghost", type: "button", onclick: () => existing ? go("b-" + existing.id, "brief") : go("home") }, "Cancel"), msg))
+  ];
+}
+
+// ---------- brief detail ----------
+function viewBrief(b) {
+  const refs = S.refs.filter(r => r.briefId === b.id); const onBoard = refs.filter(r => r.onBoard);
+  const st = STATUS[b.status] || STATUS.new;
+  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length], ["board", "Mood board", onBoard.length]];
+  if (S.tab === "edit") return viewBriefForm(b);
+  if (!tabs.some(t => t[0] === S.tab)) S.tab = "brief";
+  const body = S.tab === "brief" ? tabBrief(b) : S.tab === "research" ? tabResearch(b) : S.tab === "refs" ? tabRefs(b, refs) : tabBoard(b, onBoard);
+  return [
+    dbBanner(),
+    h("div", { class: "spread" },
+      h("div", { style: "display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 380px" },
+        h("div", { class: "row" }, h("span", { class: "pill " + st[1] }, st[0]), b.due ? h("span", { class: "pill" }, "Due " + b.due) : null, b.createdAt ? h("span", { class: "muted", style: "font-size:.82rem" }, "Added " + fmtDate(b.createdAt), b.createdBy ? creatorName(b.createdBy) : null) : null),
+        h("h1", { style: "overflow-wrap:anywhere" }, str(b.title, 160))),
+      h("div", { class: "row" },
+        h("button", { class: "btn sm", type: "button", onclick: () => go("b-" + b.id, "edit") }, "Edit brief"),
+        S.confirmDelete === b.id ? [h("span", { class: "muted", style: "font-size:.84rem" }, "Delete this brief and its references?"), h("button", { class: "btn sm danger", type: "button", onclick: () => deleteBrief(b, refs) }, "Delete"), h("button", { class: "btn sm ghost", type: "button", onclick: () => { S.confirmDelete = null; render(true); } }, "Keep")]
+          : h("button", { class: "btn sm ghost", type: "button", onclick: () => { S.confirmDelete = b.id; render(true); } }, "Delete"))),
+    h("div", { class: "tabs", role: "tablist" }, tabs.map(([k, l, n]) => h("button", { class: "tab", role: "tab", type: "button", "aria-selected": S.tab === k ? "true" : "false", onclick: () => go("b-" + b.id, k) }, l, n != null ? h("span", { class: "n" }, n) : null))),
+    body
+  ];
+}
+function creatorName(id) {
+  const span = h("span", null);
+  if (S.user && id) {
+    const cached = S.profiles[id]; if (cached) span.textContent = " by " + cached;
+    else S.user.profiles([id]).then(ps => { const n = ps?.[id]?.name || ""; if (n) { S.profiles[id] = n; span.textContent = " by " + n; } }).catch(() => {});
+  }
+  return span;
+}
+async function deleteBrief(b, refs) {
+  try {
+    for (const r of refs) { try { await S.db.doc("refs/" + r.id).delete(); } catch {} if (r.assetId && S.assets) S.assets.delete(r.assetId).catch(() => {}); }
+    await S.db.doc("briefs/" + b.id).delete(); toast("Brief deleted"); go("home");
+  } catch { toast("Couldn't delete the brief. You may not have permission."); }
+}
+
+function tabBrief(b) {
+  const item = (k, v) => str(v).trim() ? h("div", null, h("span", { class: "label" }, k), h("span", { class: "v" }, str(v, 3000))) : null;
+  return h("div", { class: "panel" },
+    h("div", { class: "kv" }, item("Product / offer", b.product), item("Objective", b.objective), item("Audience", b.audience), item("Placements", arr(b.platforms).join(", ")), item("Formats", arr(b.formats).join(", ")), item("Key message", b.message), item("CTA", b.cta), item("Mandatories", b.mandatories), item("Mood words", b.mood), item("Competitors", b.competitors), item("Market", (MARKETS.find(m => m[0] === b.market) || [0, b.market])[1]), item("KPI", b.kpi), item("References", b.references)),
+    h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: () => go("b-" + b.id, "research") }, b.research ? "View research" : "Start visual research")));
+}
+
+// ---------- research ----------
+async function runResearch(b) {
+  if (!S.sample) { S.err["r" + b.id] = "Claude isn't available in this view. Open the page on claude.ai."; render(true); return; }
+  S.busy["r" + b.id] = true; S.err["r" + b.id] = ""; S.progress["r" + b.id] = 0; render(true);
+  const ctl = new AbortController(); S.ctl["r" + b.id] = ctl;
+  let phase = "ask";
+  const prompt = `You are a senior performance-marketing art director doing visual research before a designer makes a paid social ad. Your output becomes a research sheet and the starting point for a mood board.
+
+BRAND GUIDELINE — binding. Never propose anything that breaks it. If the brief conflicts with it, follow the guideline and flag the conflict.
+${guideText()}
+
+BRIEF FROM THE GROWTH TEAM
+${briefText(b)}
+
+Work like this: decode what the ad must achieve for the objective and placements; recall what high-performing paid creative in this category typically does on Meta, Instagram and Pinterest (first-frame hook, focal point, offer legibility, text safe zones for 4:5 and 9:16, native vs. polished look); then propose three clearly different art directions (for example one people/lifestyle-led, one product- or offer-led, one graphic/typographic or UGC-native), each fully inside the guideline.
+
+Reply with ONLY one JSON object, no other text, in exactly this shape:
+{
+ "insight": "2 sentences: the creative problem this brief is really asking us to solve",
+ "directions": [
+  {"name": "short evocative name", "concept": "2 sentences", "whyItPerforms": "1-2 sentences tied to the objective and placement",
+   "hook": "what the first frame / thumbnail shows to stop the scroll",
+   "palette": ["#HEX", "..."], "composition": "framing, focal point, where the offer and CTA sit, safe-zone notes",
+   "lighting": "...", "casting": "people, styling, wardrobe, or 'no people'", "typeOnImage": "headline treatment, max words",
+   "formatNotes": "how it adapts across the requested formats",
+   "shotList": ["3-5 concrete shots or frames to produce"],
+   "brandFit": {"score": 0-100, "notes": "which guideline rules this leans on, any risk"}}
+ ],
+ "search": {
+  "pinterest": [{"query": "visual search phrase", "why": "what to look for"}],
+  "meta": [{"query": "advertiser name or ad keyword", "why": "what to study in their ads"}],
+  "instagram": [{"hashtag": "nohashsymbol", "why": "what to look for"}]
+ },
+ "patterns": ["5-7 observations of what winning ads in this category do visually"],
+ "avoid": ["4-6 things to avoid: category clichés plus guideline don'ts that matter for this brief"],
+ "conflicts": ["any clash between the brief and the guideline; empty array if none"]
+}
+Rules: exactly 3 directions. Palettes use only hex codes from the brand palette, plus at most one neutral (white, black, or a grey). 5-6 entries per search list; Pinterest queries are aesthetic/visual phrases a designer would type; Meta entries include the competitors named in the brief plus category keywords; Instagram hashtags are real, commonly used tags. Be specific to this brief, never generic.`;
+  try {
+    const res = await S.sample.json(prompt, { signal: ctl.signal, modelTier: "complex", cache: false, onText: ({ text }) => { S.progress["r" + b.id] = text.length; const el = $("rprog"); if (el) el.textContent = "Writing research… " + text.length.toLocaleString() + " characters"; } });
+    if (!res || !Array.isArray(res.directions)) throw { code: "invalid_json" };
+    const research = sanitiseResearch(res);
+    phase = "save";
+    await S.db.doc("briefs/" + b.id).update({ research, researchedAt: Date.now(), status: b.status === "board" ? "board" : "researched" });
+    toast("Research ready");
+  } catch (e) { if (e?.code !== "cancelled") S.err["r" + b.id] = phase === "ask" ? sampleErr(e) : "Couldn't save the research. You may not have permission to edit briefs."; }
+  finally { S.busy["r" + b.id] = false; render(true); }
+}
+function sanitiseResearch(r) {
+  const sl = (a, n, f) => arr(a).slice(0, n).map(f).filter(Boolean);
+  return {
+    insight: str(r.insight, 800),
+    directions: sl(r.directions, 3, d => ({
+      name: str(d?.name, 80), concept: str(d?.concept, 600), whyItPerforms: str(d?.whyItPerforms, 500), hook: str(d?.hook, 400),
+      palette: sl(d?.palette, 6, x => isHex(x) ? x.toUpperCase() : null), composition: str(d?.composition, 600), lighting: str(d?.lighting, 300),
+      casting: str(d?.casting, 300), typeOnImage: str(d?.typeOnImage, 300), formatNotes: str(d?.formatNotes, 400),
+      shotList: sl(d?.shotList, 6, x => str(x, 200) || null), brandFit: { score: Math.max(0, Math.min(100, Number(d?.brandFit?.score) || 0)), notes: str(d?.brandFit?.notes, 400) }
+    })),
+    search: {
+      pinterest: sl(r.search?.pinterest, 8, x => str(x?.query, 120) ? { query: str(x.query, 120), why: str(x.why, 200) } : null),
+      meta: sl(r.search?.meta, 8, x => str(x?.query, 120) ? { query: str(x.query, 120), why: str(x.why, 200) } : null),
+      instagram: sl(r.search?.instagram, 8, x => str(x?.hashtag, 60) ? { hashtag: str(x.hashtag, 60).replace(/^#/, ""), why: str(x.why, 200) } : null)
+    },
+    patterns: sl(r.patterns, 8, x => str(x, 300) || null), avoid: sl(r.avoid, 8, x => str(x, 300) || null), conflicts: sl(r.conflicts, 6, x => str(x, 300) || null)
+  };
+}
+function tabResearch(b) {
+  const busy = S.busy["r" + b.id], err = S.err["r" + b.id], r = b.research;
+  const guideMissing = !S.guide || !arr(S.guide.palette).length;
+  const runBar = h("div", { class: "notice" + (guideMissing ? " warn" : "") },
+    h("div", { style: "min-width:0;flex:1 1 320px;display:flex;flex-direction:column;gap:4px" },
+      h("b", null, r ? "Research from " + fmtDate(b.researchedAt) : "Run visual research"),
+      h("span", { style: "font-size:.88rem" }, guideMissing ? "No brand palette is set yet, so results can't be checked against your guideline. Set up the guideline first for on-brand directions." : "Claude reads the brief and your brand guideline, then proposes 3 art directions and the searches to run on each platform. Takes about a minute."),
+      busy ? h("span", { class: "status" }, h("span", { class: "spin" }), h("span", { id: "rprog" }, "Thinking through the brief…")) : null,
+      err ? h("span", { style: "color:var(--bad);font-size:.88rem" }, err) : null),
+    h("div", { class: "row" }, guideMissing ? h("button", { class: "btn sm", type: "button", onclick: () => go("guide") }, "Set up guideline") : null,
+      busy ? h("button", { class: "btn", type: "button", onclick: () => S.ctl["r" + b.id]?.abort() }, "Stop")
+        : h("button", { class: "btn primary", type: "button", disabled: !S.db, onclick: () => runResearch(b) }, r ? "Run again" : "Run research")));
+  if (!r) return h("div", { style: "display:flex;flex-direction:column;gap:16px" }, runBar);
+  const searchCol = (key, title, items, link, label) => h("div", { class: "srccol" },
+    h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + key }, title), h("span", { class: "muted mono" }, items.length)),
+    items.length ? items.map(it => { const u = link(it); return u ? h("a", { class: "q", href: u, target: "_blank", rel: "noopener" }, h("b", null, label(it)), it.why ? h("span", null, it.why) : null) : null; }) : h("p", { class: "muted" }, "No searches suggested."));
+  return h("div", { style: "display:flex;flex-direction:column;gap:18px" },
+    runBar,
+    r.insight ? h("div", { class: "panel" }, h("div", { class: "label" }, "The creative problem"), h("p", { style: "font-size:1.08rem;max-width:72ch" }, r.insight)) : null,
+    arr(r.conflicts).length ? h("div", { class: "notice warn" }, h("div", null, h("b", null, "Brief vs. guideline conflicts"), h("ul", { class: "list" }, r.conflicts.map(c => h("li", null, c))))) : null,
+    h("div", { style: "display:flex;flex-direction:column;gap:10px" }, h("h2", null, "Art directions"),
+      h("div", { class: "dirs" }, arr(r.directions).map((d, i) => h("article", { class: "dir" },
+        h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "label" }, "Direction " + String.fromCharCode(65 + i)), d.brandFit ? h("span", { class: "pill " + (d.brandFit.score >= 75 ? "ok" : d.brandFit.score >= 55 ? "warn" : "bad"), title: d.brandFit.notes }, "Brand fit " + d.brandFit.score) : null),
+        h("h3", null, d.name), arr(d.palette).length ? swatchBar(d.palette) : null,
+        h("p", null, d.concept),
+        [["Scroll-stopping hook", d.hook], ["Why it performs", d.whyItPerforms], ["Composition", d.composition], ["Lighting", d.lighting], ["Casting", d.casting], ["Type on image", d.typeOnImage], ["Formats", d.formatNotes]].filter(x => x[1]).map(([k, v]) => h("div", null, h("div", { class: "k" }, k), h("p", { style: "font-size:.9rem" }, v))),
+        arr(d.shotList).length ? h("div", null, h("div", { class: "k" }, "Shot list"), h("ul", { style: "font-size:.9rem" }, d.shotList.map(s => h("li", null, s)))) : null,
+        d.brandFit?.notes ? h("p", { class: "muted", style: "font-size:.82rem" }, "Guideline note: " + d.brandFit.notes) : null)))),
+    h("div", { style: "display:flex;flex-direction:column;gap:10px" },
+      h("div", { class: "spread", style: "align-items:flex-end" }, h("div", null, h("h2", null, "Where to look"), h("p", { class: "muted", style: "font-size:.88rem" }, "Each link opens the search on the platform. Screenshot what's relevant, then paste it into References.")), h("button", { class: "btn sm", type: "button", onclick: () => go("b-" + b.id, "refs") }, "Go to References")),
+      h("div", { class: "sources" },
+        searchCol("pinterest", "Pinterest", arr(r.search?.pinterest), it => pinUrl(it.query), it => it.query),
+        searchCol("meta", "Meta Ad Library", arr(r.search?.meta), it => metaUrl(it.query, b.market), it => it.query),
+        searchCol("instagram", "Instagram", arr(r.search?.instagram), it => igUrl(it.hashtag), it => "#" + it.hashtag))),
+    h("div", { class: "dirs" },
+      arr(r.patterns).length ? h("div", { class: "panel" }, h("div", { class: "label" }, "What winning ads in this space do"), h("ul", { class: "list" }, r.patterns.map(p => h("li", null, p)))) : null,
+      arr(r.avoid).length ? h("div", { class: "panel" }, h("div", { class: "label" }, "Avoid"), h("ul", { class: "list" }, r.avoid.map(p => h("li", null, p)))) : null));
+}
+
+// ---------- references ----------
+async function prepImage(file) {
+  const bmp = await createImageBitmap(file);
+  const max = 1600, sc = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const colors = extractColors(bmp, bmp.width, bmp.height);
+  const blob = await new Promise((res, rej) => c.toBlob(bl => bl ? res(bl) : rej(new Error("encode")), "image/jpeg", 0.88));
+  return { blob, colors, w: c.width, h: c.height };
+}
+async function addFiles(b, files) {
+  const imgs = [...files].filter(f => /^image\//.test(f.type));
+  if (!imgs.length) { toast("Only image files can be added."); return; }
+  if (!S.assets) { toast("Uploading isn't available for your access level. Ask the owner for Contributor access."); return; }
+  if (!S.db) { toast("The shared workspace isn't available in this view."); return; }
+  const { source, link, note } = S.upload;
+  S.upload.queue += imgs.length; render(true);
+  let ok = 0;
+  for (const f of imgs) {
+    try {
+      const p = await prepImage(f);
+      const up = await S.assets.upload(p.blob);
+      const ref = await S.db.collection("refs").add({ briefId: b.id, assetId: up.id, url: up.url, source, link: safeUrl(link) || "", note: str(note, 300), colors: p.colors, w: p.w, h: p.h, onBoard: false, createdAt: Date.now(), createdBy: S.me?.id || null });
+      S.blobCache.set(ref.id, p.blob); ok++;
+    } catch (e) { toast(e?.code === "quota_exceeded" ? "Storage is full. Remove unused references." : "One image couldn't be added."); }
+    finally { S.upload.queue--; }
+  }
+  if (ok) toast(ok + (ok === 1 ? " reference added" : " references added"));
+  render(true);
+}
+async function refBlob(r) {
+  if (S.blobCache.has(r.id)) return S.blobCache.get(r.id);
+  const src = r.assetId ? "/_blob/" + r.assetId : r.url;
+  const res = await fetch(src); if (!res.ok) throw new Error("fetch"); const bl = await res.blob(); S.blobCache.set(r.id, bl); return bl;
+}
+async function reviewRefs(b, refs) {
+  if (!S.sample) return;
+  const max = S.limits?.images?.maxCount || 5;
+  const todo = refs.filter(r => !r.review).slice(0, Math.min(max, 8));
+  if (!todo.length) return;
+  S.busy["v" + b.id] = true; S.err["v" + b.id] = ""; render(true);
+  const ctl = new AbortController(); S.ctl["v" + b.id] = ctl;
+  try {
+    const blobs = []; const meta = [];
+    for (const r of todo) { blobs.push(await refBlob(r)); meta.push(r); }
+    const dirs = arr(b.research?.directions).map(d => d.name).filter(Boolean);
+    const prompt = `You are a brand-guardian art director reviewing reference images a designer collected for a performance ad. Judge each against the BRAND GUIDELINE first, then usefulness for the BRIEF.
+
+BRAND GUIDELINE
+${guideText()}
+
+BRIEF
+${briefText(b)}
+${dirs.length ? "\nART DIRECTIONS already chosen: " + dirs.join(" | ") : ""}
+
+The ${todo.length} images are attached in this order:
+${meta.map((r, i) => `${i + 1}. source: ${SRC_LABEL[r.source] || "Other"}; measured palette fit with brand colours: ${paletteFit(r.colors) ?? "n/a"}%${r.note ? "; designer note: " + str(r.note, 200) : ""}`).join("\n")}
+
+Reply with ONLY a JSON array with one object per image, same order:
+[{"i": 1, "verdict": "on-brand" | "adapt" | "off-brand", "score": 0-100, "direction": "${dirs.length ? "name of the best-fitting direction, or empty" : "empty string"}", "aligns": ["up to 3 short points that match the guideline"], "conflicts": ["up to 3 short points that break or strain the guideline"], "borrow": "one sentence: what exactly to take from this into our ad"}]
+"adapt" means the idea is useful but colour, casting, styling or type must change to fit the guideline. Treat competitor branding as reference only.`;
+    const out = await S.sample.json(prompt, { images: blobs, signal: ctl.signal, cache: false });
+    const list = arr(out);
+    for (let i = 0; i < todo.length; i++) {
+      const o = list.find(x => Number(x?.i) === i + 1) || list[i]; if (!o) continue;
+      const verdict = ["on-brand", "adapt", "off-brand"].includes(o.verdict) ? o.verdict : "adapt";
+      const review = { verdict, score: Math.max(0, Math.min(100, Number(o.score) || 0)), direction: str(o.direction, 80), aligns: arr(o.aligns).slice(0, 3).map(x => str(x, 160)), conflicts: arr(o.conflicts).slice(0, 3).map(x => str(x, 160)), borrow: str(o.borrow, 300), at: Date.now() };
+      await S.db.doc("refs/" + todo[i].id).update({ review, ...(verdict === "on-brand" && !todo[i].onBoard ? { onBoard: true } : {}) });
+    }
+    toast("Reviewed " + todo.length + " reference" + (todo.length === 1 ? "" : "s"));
+  } catch (e) { if (e?.code !== "cancelled") S.err["v" + b.id] = e?.code ? sampleErr(e) : "Couldn't load the images for review. Try again."; }
+  finally { S.busy["v" + b.id] = false; render(true); }
+}
+function verdictPill(v) { if (!v) return h("span", { class: "pill" }, "Not reviewed"); const m = { "on-brand": ["ok", "On-brand"], adapt: ["warn", "Adapt"], "off-brand": ["bad", "Off-brand"] }[v.verdict] || ["", v.verdict]; return h("span", { class: "pill " + m[0], title: "Claude score " + v.score }, m[1] + " · " + v.score); }
+
+function tabRefs(b, refs) {
+  const unreviewed = refs.filter(r => !r.review).length; const busy = S.busy["v" + b.id];
+  const fileIn = h("input", { type: "file", id: "refFile", accept: "image/*", multiple: true, hidden: true, onchange: (e) => { addFiles(b, e.target.files); e.target.value = ""; } });
+  const stop = (e) => e.stopPropagation();
+  const drop = h("div", { class: "drop", tabindex: "0", role: "button", "aria-label": "Add reference images",
+    onclick: () => fileIn.click(), onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileIn.click(); } },
+    ondragover: (e) => { e.preventDefault(); drop.classList.add("over"); }, ondragleave: () => drop.classList.remove("over"),
+    ondrop: (e) => { e.preventDefault(); drop.classList.remove("over"); addFiles(b, e.dataTransfer.files); } },
+    h("b", null, "Paste a screenshot (Ctrl/⌘+V), drop images, or click to choose"),
+    h("span", { class: "muted", style: "font-size:.86rem" }, "Grab references from the research links. Each image is colour-matched to your brand palette on arrival."),
+    h("div", { class: "controls", onclick: stop },
+      h("select", { id: "upSource", "aria-label": "Source", onchange: (e) => S.upload.source = e.target.value }, SOURCES.map(([v, l]) => h("option", { value: v, selected: S.upload.source === v }, l))),
+      h("input", { id: "upLink", type: "text", placeholder: "Link to the pin, ad or post (optional)", value: S.upload.link, oninput: (e) => S.upload.link = e.target.value }),
+      h("input", { id: "upNote", type: "text", placeholder: "Why you saved it (optional)", value: S.upload.note, oninput: (e) => S.upload.note = e.target.value })),
+    S.upload.queue ? h("span", { class: "status" }, h("span", { class: "spin" }), "Adding " + S.upload.queue + "…") : null, fileIn);
+  S.pasteTarget = b;
+  return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
+    S.assets === null && S.capsChecked ? h("div", { class: "notice warn" }, h("span", null, "Your access level can't upload images. Ask the artifact owner for Contributor access.")) : drop,
+    refs.length ? h("div", { class: "spread", style: "align-items:center" },
+      h("div", { class: "row" }, h("b", null, refs.length + " references"), h("span", { class: "muted", style: "font-size:.86rem" }, refs.filter(r => r.onBoard).length + " pinned to board")),
+      h("div", { class: "row" },
+        busy ? [h("span", { class: "status" }, h("span", { class: "spin" }), "Claude is reviewing against the guideline…"), h("button", { class: "btn sm", type: "button", onclick: () => S.ctl["v" + b.id]?.abort() }, "Stop")]
+          : h("button", { class: "btn primary sm", type: "button", disabled: !unreviewed || !S.sample || !S.limits?.images, title: !S.limits?.images ? "Image review needs claude.ai in a browser" : "", onclick: () => reviewRefs(b, refs) }, unreviewed ? "Review " + Math.min(unreviewed, S.limits?.images?.maxCount || 5, 8) + " with Claude" : "All reviewed"))) : null,
+    S.err["v" + b.id] ? h("p", { style: "color:var(--bad)" }, S.err["v" + b.id]) : null,
+    refs.length ? h("div", { class: "refs" }, refs.map(r => refCard(r))) : h("div", { class: "empty" }, h("h2", null, "No references yet"), h("p", null, "Run research for search links, then paste what you find here.")));
+}
+function refCard(r) {
+  const fit = paletteFit(r.colors); const lk = safeUrl(r.link); const v = r.review;
+  return h("article", { class: "ref" + (r.onBoard ? " on" : "") },
+    h("div", { class: "img" }, h("img", { src: r.assetId ? "/_blob/" + r.assetId : (safeUrl(r.url) || r.url), alt: "Reference from " + (SRC_LABEL[r.source] || "other source"), loading: "lazy" })),
+    h("div", { class: "body" },
+      h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + (SRC_LABEL[r.source] ? r.source : "other") }, SRC_LABEL[r.source] || "Other"), lk ? h("a", { href: lk, target: "_blank", rel: "noopener", style: "font-size:.8rem" }, "Open ↗") : null),
+      swatchBar(r.colors),
+      h("div", { class: "row", style: "gap:6px" }, verdictPill(v), fitPill(fit)),
+      r.note ? h("p", { class: "muted" }, r.note) : null,
+      v?.direction ? h("p", null, h("span", { class: "label" }, "Fits "), v.direction) : null,
+      v?.borrow ? h("p", null, h("b", null, "Borrow: "), v.borrow) : null,
+      arr(v?.conflicts).length ? h("ul", { style: "color:var(--bad)" }, v.conflicts.map(c => h("li", null, c))) : null,
+      h("div", { class: "row", style: "gap:6px;margin-top:2px" },
+        h("button", { class: "btn sm" + (r.onBoard ? " primary" : ""), type: "button", onclick: () => S.db?.doc("refs/" + r.id).update({ onBoard: !r.onBoard }).catch(() => toast("Couldn't update. You may not have permission.")) }, r.onBoard ? "On board ✓" : "Add to board"),
+        S.confirmDelete === r.id ? [h("button", { class: "btn sm danger", type: "button", onclick: () => removeRef(r) }, "Remove"), h("button", { class: "btn sm ghost", type: "button", onclick: () => { S.confirmDelete = null; render(true); } }, "Keep")]
+          : h("button", { class: "btn sm ghost", type: "button", onclick: () => { S.confirmDelete = r.id; render(true); } }, "Remove"))));
+}
+async function removeRef(r) {
+  try { await S.db.doc("refs/" + r.id).delete(); if (r.assetId && S.assets) S.assets.delete(r.assetId).catch(() => {}); S.blobCache.delete(r.id); S.confirmDelete = null; toast("Reference removed"); }
+  catch { toast("Couldn't remove it. You may not have permission."); }
+}
+document.addEventListener("paste", (e) => {
+  if (!(S.view.startsWith("b-") && S.tab === "refs" && S.pasteTarget)) return;
+  const t = e.target; if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type === "text"))) { if (![...(e.clipboardData?.items || [])].some(i => i.type.startsWith("image/"))) return; }
+  const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
+  if (files.length) { e.preventDefault(); addFiles(S.pasteTarget, files); }
+});
+
+// ---------- board ----------
+async function writeArtDirection(b, onBoard) {
+  if (!S.sample) return;
+  S.busy["n" + b.id] = true; S.err["n" + b.id] = ""; render(true);
+  const ctl = new AbortController(); S.ctl["n" + b.id] = ctl;
+  try {
+    const d = arr(b.research?.directions).find(x => x.name === b.boardDirection) || arr(b.research?.directions)[0];
+    const prompt = `Write the art-direction note that sits on a mood board for a designer producing a performance ad. Be concrete and brief; every line should be actionable.
+
+BRAND GUIDELINE (binding)
+${guideText()}
+
+BRIEF
+${briefText(b)}
+
+CHOSEN DIRECTION: ${d ? `${d.name}: ${d.concept} Hook: ${d.hook}. Composition: ${d.composition}. Palette: ${arr(d.palette).join(", ")}` : "none chosen; infer from references"}
+
+PINNED REFERENCES (${onBoard.length})
+${onBoard.map((r, i) => `${i + 1}. ${SRC_LABEL[r.source] || "Other"} — colours ${arr(r.colors).map(c => c.hex).join(" ")}${r.review ? "; verdict " + r.review.verdict + "; borrow: " + r.review.borrow : ""}${r.note ? "; note: " + str(r.note, 150) : ""}`).join("\n")}
+
+Reply with ONLY this JSON object:
+{"headline": "the visual idea in under 10 words", "summary": "2 sentences", "composition": "...", "color": "which brand hex codes, in what proportion", "casting": "...", "type": "headline/offer/CTA treatment and placement", "hook": "first frame / thumbnail", "doNot": ["3-5 items"], "deliverables": [{"format": "4:5", "notes": "..."}]}
+Deliverables cover exactly the formats in the brief (or 4:5 and 9:16 if none).`;
+    const o = await S.sample.json(prompt, { signal: ctl.signal, cache: false });
+    const note = { headline: str(o?.headline, 120), summary: str(o?.summary, 600), composition: str(o?.composition, 600), color: str(o?.color, 400), casting: str(o?.casting, 400), type: str(o?.type, 400), hook: str(o?.hook, 400), doNot: arr(o?.doNot).slice(0, 6).map(x => str(x, 200)), deliverables: arr(o?.deliverables).slice(0, 6).map(x => ({ format: str(x?.format, 30), notes: str(x?.notes, 300) })), at: Date.now() };
+    await S.db.doc("briefs/" + b.id).update({ boardNote: note, status: "board" });
+    toast("Art direction written");
+  } catch (e) { if (e?.code !== "cancelled") S.err["n" + b.id] = e?.code ? sampleErr(e) : "Couldn't save the note. Try again."; }
+  finally { S.busy["n" + b.id] = false; render(true); }
+}
+function tabBoard(b, onBoard) {
+  const dirs = arr(b.research?.directions); const n = b.boardNote; const busy = S.busy["n" + b.id];
+  const pal = arr(S.guide?.palette).filter(p => isHex(p.hex));
+  if (!onBoard.length) return h("div", { class: "panel empty" }, h("h2", null, "The board is empty"), h("p", null, "Add references, then pin the strongest ones. On-brand picks from Claude's review are pinned automatically."), h("button", { class: "btn primary", type: "button", onclick: () => go("b-" + b.id, "refs") }, "Go to References"));
+  return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
+    h("div", { class: "spread", style: "align-items:center" },
+      h("div", { class: "row" },
+        dirs.length ? [h("label", { for: "boardDir", class: "label" }, "Direction"), h("select", { id: "boardDir", style: "width:auto", onchange: (e) => S.db?.doc("briefs/" + b.id).update({ boardDirection: e.target.value }).catch(() => {}) }, dirs.map(d => h("option", { value: d.name, selected: (b.boardDirection || dirs[0].name) === d.name }, d.name)))] : null),
+      h("div", { class: "row" },
+        busy ? [h("span", { class: "status" }, h("span", { class: "spin" }), "Writing art direction…"), h("button", { class: "btn sm", type: "button", onclick: () => S.ctl["n" + b.id]?.abort() }, "Stop")]
+          : h("button", { class: "btn sm", type: "button", disabled: !S.sample || !S.db, onclick: () => writeArtDirection(b, onBoard) }, n ? "Rewrite art direction" : "Write art direction"),
+        h("button", { class: "btn primary sm", type: "button", disabled: !S.downloads, title: S.downloads ? "" : "Downloads aren't available in this view", onclick: () => exportBoard(b, onBoard) }, "Export PNG"))),
+    S.err["n" + b.id] ? h("p", { style: "color:var(--bad)" }, S.err["n" + b.id]) : null,
+    h("div", { class: "panel" },
+      h("div", { class: "boardhead" },
+        h("div", { style: "display:flex;flex-direction:column;gap:8px;min-width:0" }, h("span", { class: "label" }, "Mood board · " + str(b.objective, 40)), h("h2", null, n?.headline || str(b.title, 140)), n?.summary ? h("p", null, n.summary) : h("p", { class: "muted" }, str(b.message, 400) || "Write an art direction to add the visual idea here.")),
+        h("div", { style: "display:flex;flex-direction:column;gap:8px;min-width:0" }, h("span", { class: "label" }, "Brand palette"), pal.length ? h("div", { class: "palette-list" }, pal.map(p => h("span", { class: "pal" }, h("i", { style: "background:" + p.hex }), h("span", null, h("span", { class: "mono" }, p.hex), p.name ? " " + str(p.name, 30) : "")))) : h("p", { class: "muted" }, "No palette in the guideline yet."))),
+      n ? h("div", { class: "an" }, [["Hook", n.hook], ["Composition", n.composition], ["Colour", n.color], ["Casting", n.casting], ["Type", n.type]].filter(x => x[1]).map(([k, v]) => h("div", null, h("span", { class: "label" }, k), h("p", { style: "font-size:.9rem" }, v))),
+        n.doNot.length ? h("div", null, h("span", { class: "label" }, "Do not"), h("ul", { class: "list", style: "font-size:.9rem" }, n.doNot.map(x => h("li", null, x)))) : null,
+        n.deliverables.length ? h("div", null, h("span", { class: "label" }, "Deliverables"), h("ul", { class: "list", style: "font-size:.9rem" }, n.deliverables.map(x => h("li", null, h("b", { class: "mono" }, x.format), " ", x.notes)))) : null) : null),
+    h("div", { class: "board" }, onBoard.map(r => h("figure", null, h("img", { src: r.assetId ? "/_blob/" + r.assetId : (safeUrl(r.url) || r.url), alt: "Mood board reference", loading: "lazy" }),
+      h("figcaption", null, h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + (SRC_LABEL[r.source] ? r.source : "other") }, SRC_LABEL[r.source] || "Other"), verdictPill(r.review)), r.review?.borrow ? h("span", null, r.review.borrow) : null)))));
+}
+function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
+function wrapText(x, text, maxW) { const words = str(text).split(/\s+/); const lines = []; let line = ""; for (const w of words) { const t = line ? line + " " + w : w; if (x.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; } if (line) lines.push(line); return lines; }
+async function exportBoard(b, onBoard) {
+  if (!S.downloads) return;
+  toast("Building the board image…");
+  try {
+    await document.fonts?.ready;
+    const W = 2000, pad = 72, gap = 20, cols = 3, colW = (W - pad * 2 - gap * (cols - 1)) / cols;
+    const imgs = []; for (const r of onBoard) { try { imgs.push(await loadImg(r.assetId ? "/_blob/" + r.assetId : r.url)); } catch {} }
+    const heights = new Array(cols).fill(0); const placed = imgs.map(im => { const c = heights.indexOf(Math.min(...heights)); const hh = colW * im.naturalHeight / im.naturalWidth; const p = { im, x: pad + c * (colW + gap), y: heights[c], h: hh }; heights[c] += hh + gap; return p; });
+    const n = b.boardNote; const pal = arr(S.guide?.palette).filter(p => isHex(p.hex));
+    const c = document.createElement("canvas"); const x = c.getContext("2d");
+    x.font = "500 26px 'Instrument Sans', Arial";
+    const sumLines = wrapText(x, n?.summary || b.message || "", W - pad * 2 - 560);
+    const headerH = 120 + 70 + sumLines.length * 38 + 60;
+    c.width = W; c.height = headerH + Math.max(...heights) + pad;
+    x.fillStyle = "#F4F5F2"; x.fillRect(0, 0, W, c.height);
+    x.fillStyle = "#5C645E"; x.font = "600 22px 'Instrument Sans', Arial"; x.fillText(("MOOD BOARD · " + str(b.title, 80)).toUpperCase(), pad, pad + 10);
+    x.fillStyle = "#16191C"; x.font = "700 60px 'Bricolage Grotesque', Arial"; x.fillText(str(n?.headline || b.title, 60), pad, pad + 90);
+    x.font = "500 26px 'Instrument Sans', Arial"; x.fillStyle = "#2B302C"; sumLines.forEach((l, i) => x.fillText(l, pad, pad + 150 + i * 38));
+    const px = W - pad - 480; x.fillStyle = "#5C645E"; x.font = "600 20px 'Instrument Sans', Arial"; x.fillText("BRAND PALETTE", px, pad + 10);
+    pal.slice(0, 8).forEach((p, i) => { const sx = px + (i % 4) * 120, sy = pad + 30 + Math.floor(i / 4) * 100; x.fillStyle = p.hex; x.fillRect(sx, sy, 104, 56); x.fillStyle = "#16191C"; x.font = "500 18px 'JetBrains Mono', monospace"; x.fillText(p.hex, sx, sy + 80); });
+    for (const p of placed) x.drawImage(p.im, p.x, headerH + p.y, colW, p.h);
+    const blob = await new Promise((res, rej) => c.toBlob(bl => bl ? res(bl) : rej(new Error("encode")), "image/png"));
+    const name = (str(b.title, 60).replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "mood-board") + "-moodboard.png";
+    await S.downloads.save({ filename: name, data: blob });
+  } catch (e) { if (e?.code !== "cancelled" && e?.code !== "declined") toast("Couldn't export the board. Try again."); }
+}
+
+// ---------- brand guideline ----------
+function viewGuide() {
+  const g = S.guide || {}; const editable = S.canEdit;
+  let palette = arr(g.palette).map(p => ({ ...p })); if (!palette.length && editable) palette = [{ hex: "#000000", name: "", role: "" }];
+  const msg = h("p", { class: "status", "aria-live": "polite" });
+  const palWrap = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
+  const drawPal = () => {
+    palWrap.textContent = "";
+    palette.forEach((p, i) => palWrap.append(h("div", { class: "palrow" },
+      h("input", { type: "color", value: isHex(p.hex) ? p.hex : "#000000", "aria-label": "Colour " + (i + 1), disabled: !editable, oninput: (e) => { p.hex = e.target.value.toUpperCase(); const t = $("ph" + i); if (t) t.value = p.hex; } }),
+      h("input", { id: "ph" + i, type: "text", class: "mono", value: p.hex || "", "aria-label": "Hex", disabled: !editable, oninput: (e) => { p.hex = e.target.value.trim(); } }),
+      h("input", { type: "text", class: "wide", placeholder: "Name (e.g. Energy Red)", value: p.name || "", disabled: !editable, oninput: (e) => p.name = e.target.value }),
+      h("input", { type: "text", class: "wide", placeholder: "Role (primary, accent, background…)", value: p.role || "", disabled: !editable, oninput: (e) => p.role = e.target.value }),
+      editable ? h("button", { class: "btn ghost sm", type: "button", "aria-label": "Remove colour", onclick: () => { palette.splice(i, 1); drawPal(); } }, "✕") : h("span"))));
+    if (editable) palWrap.append(h("div", null, h("button", { class: "btn sm", type: "button", onclick: () => { palette.push({ hex: "#888888", name: "", role: "" }); drawPal(); } }, "+ Add colour")));
+  };
+  drawPal();
+  const ta = (id, label, hint, val) => h("div", { class: "field" }, h("label", { for: id }, label), h("textarea", { id, rows: 3, value: val || "", disabled: !editable, placeholder: hint }));
+  const listVal = (v) => arr(v).join("\n");
+  const fillFrom = (o) => {
+    if (o.name) $("g_name").value = str(o.name, 80);
+    for (const k of ["photography", "lighting", "casting", "composition", "typography", "logo", "tone"]) if (o[k]) $("g_" + k).value = str(o[k], 1500);
+    if (arr(o.dos).length) $("g_dos").value = o.dos.map(x => str(x, 200)).join("\n");
+    if (arr(o.donts).length) $("g_donts").value = o.donts.map(x => str(x, 200)).join("\n");
+    const pl = arr(o.palette).filter(p => isHex(p?.hex)).map(p => ({ hex: p.hex.toUpperCase(), name: str(p.name, 40), role: str(p.role, 60) }));
+    if (pl.length) { palette = pl; drawPal(); }
+  };
+  const save = async () => {
+    const data = { name: str($("g_name").value, 80).trim(), palette: palette.filter(p => isHex(p.hex)).map(p => ({ hex: p.hex.toUpperCase(), name: str(p.name, 40).trim(), role: str(p.role, 60).trim() })) };
+    for (const k of ["photography", "lighting", "casting", "composition", "typography", "logo", "tone"]) data[k] = str($("g_" + k).value, 2000).trim();
+    data.dos = $("g_dos").value.split("\n").map(s => s.trim()).filter(Boolean).slice(0, 30);
+    data.donts = $("g_donts").value.split("\n").map(s => s.trim()).filter(Boolean).slice(0, 30);
+    data.updatedAt = Date.now();
+    if (!S.db) { msg.textContent = "Can't save: the shared workspace isn't available in this view."; return; }
+    msg.textContent = "Saving…";
+    try { await S.db.doc("brand/guide").set(data); msg.textContent = ""; toast("Guideline saved"); }
+    catch (e) { msg.textContent = e?.code === "invalid_argument" ? "Only editors can change the guideline." : "Couldn't save. Try again."; }
+  };
+  // Import from text or brand-book screenshots
+  const extractMsg = h("p", { class: "status", "aria-live": "polite" });
+  const extract = async (images) => {
+    if (!S.sample) { extractMsg.textContent = "Claude isn't available in this view."; return; }
+    const text = str($("g_import").value, 60000).trim();
+    if (!text && !images?.length) { extractMsg.textContent = "Paste guideline text or choose screenshots first."; return; }
+    extractMsg.textContent = ""; extractMsg.append(h("span", { class: "spin" }), "Reading your guideline…");
+    try {
+      const prompt = `Extract the image and visual rules from this brand guideline so they can be used to judge advertising imagery. ${images?.length ? "The attached images are pages or screenshots from the brand book." : ""}
+${text ? "GUIDELINE TEXT:\n" + text : ""}
+Reply with ONLY this JSON object (empty string or empty array where the guideline says nothing; never invent rules):
+{"name": "brand name", "palette": [{"hex": "#RRGGBB", "name": "...", "role": "primary/secondary/accent/background/text"}], "photography": "style of photography and imagery", "lighting": "...", "casting": "people, diversity, styling, wardrobe, body representation", "composition": "framing, cropping, negative space, product placement", "typography": "type on images, headline rules", "logo": "logo placement, clear space, misuse", "tone": "mood and emotional tone", "dos": ["short rules"], "donts": ["short rules"]}`;
+      const o = await S.sample.json(prompt, { images: images?.length ? [...images].slice(0, S.limits?.images?.maxCount || 5) : undefined, cache: false });
+      fillFrom(o || {}); extractMsg.textContent = "Fields filled in below. Check them, then save.";
+    } catch (e) { extractMsg.textContent = sampleErr(e); }
+  };
+  const shotIn = h("input", { type: "file", accept: "image/*", multiple: true, hidden: true, onchange: (e) => { extract(e.target.files); } });
+  return [
+    dbBanner(),
+    h("div", { class: "spread" }, h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:66ch" }, h("div", { class: "label" }, "Brand guideline"), h("h1", null, "Image rules every result is checked against"), h("p", { class: "muted" }, "Research directions, palette-fit scores and Claude's image reviews all read from this page. " + (editable ? "Keep it current." : "Only editors can change it.")))),
+    editable ? h("div", { class: "panel" },
+      h("div", null, h("h3", null, "Import from your brand book"), h("p", { class: "muted", style: "font-size:.88rem" }, "Paste the guideline text, or choose screenshots of the brand-book pages (PDF pages exported as images work). Claude fills in the fields below for you to check.")),
+      h("textarea", { id: "g_import", rows: 4, placeholder: "Paste guideline text here…" }),
+      h("div", { class: "row" }, h("button", { class: "btn", type: "button", onclick: () => extract(null) }, "Read pasted text"), h("button", { class: "btn", type: "button", disabled: !S.limits?.images, title: S.limits?.images ? "" : "Needs claude.ai in a browser", onclick: () => shotIn.click() }, "Read screenshots…"), shotIn, extractMsg)) : null,
+    h("div", { class: "panel" },
+      h("div", { class: "field" }, h("label", { for: "g_name" }, "Brand name"), h("input", { id: "g_name", type: "text", value: g.name || "", disabled: !editable })),
+      h("div", { class: "field" }, h("span", { class: "lab" }, "Colour palette"), h("span", { class: "hint" }, "Used for palette-fit scores on every reference and to constrain research palettes."), palWrap),
+      h("div", { class: "form" },
+        ta("g_photography", "Photography style", "Real, candid, high-contrast, studio vs. outdoor…", g.photography),
+        ta("g_lighting", "Lighting", "Natural daylight, warm, hard shadows…", g.lighting),
+        ta("g_casting", "People & casting", "Age range, diversity, body types, wardrobe, expressions…", g.casting),
+        ta("g_composition", "Composition & framing", "Negative space, crops, angle, product placement…", g.composition),
+        ta("g_typography", "Type on images", "Fonts, weight, max words, placement, case…", g.typography),
+        ta("g_logo", "Logo usage", "Placement, size, clear space, backgrounds…", g.logo),
+        ta("g_tone", "Tone & mood", "Energetic, inclusive, never intimidating…", g.tone),
+        h("div", { class: "field" }),
+        h("div", { class: "field" }, h("label", { for: "g_dos" }, "Always (one per line)"), h("textarea", { id: "g_dos", rows: 5, value: listVal(g.dos), disabled: !editable })),
+        h("div", { class: "field" }, h("label", { for: "g_donts" }, "Never (one per line)"), h("textarea", { id: "g_donts", rows: 5, value: listVal(g.donts), disabled: !editable }))),
+      editable ? h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: save }, "Save guideline"), msg, g.updatedAt ? h("span", { class: "muted", style: "font-size:.84rem" }, "Last saved " + fmtDate(g.updatedAt)) : null) : null)
+  ];
+}
+
+// ---------- boot ----------
+$("newBriefBtn").addEventListener("click", () => go("new"));
+$("guideNav").addEventListener("click", () => go("guide"));
+readHash(); render(true);
+
+(async () => {
+  const c = window.claude;
+  if (!c?.use) { S.dbChecked = true; S.capsChecked = true; S.loaded.guide = true; render(true); return; }
+  const [db, user, sample, assets, downloads] = await Promise.all(["db", "user", "sample", "assets", "downloads"].map(n => c.use(n).catch(() => null)));
+  Object.assign(S, { db, user, sample, assets, downloads, dbChecked: true, capsChecked: true });
+  if (user) { try { S.me = await user.me(); } catch {} try { S.canEdit = !!(await user.canEdit()); } catch {} }
+  if (sample) { try { S.limits = await sample.limits(); } catch {} }
+  if (!db) { S.loaded.guide = true; render(true); return; }
+  const timer = setTimeout(() => { if (!S.loaded.briefs) { S.loaded.briefs = true; S.loaded.guide = true; render(true); } }, 10000);
+  db.doc("brand/guide").onSnapshot(s => { S.guide = s.exists ? s.data() : null; S.loaded.guide = true; render(); }, () => { S.loaded.guide = true; render(); });
+  db.collection("briefs").orderBy("createdAt", "desc").limit(200).onSnapshot(s => { clearTimeout(timer); S.briefs = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.briefs = true; render(); }, () => { S.loaded.briefs = true; render(); });
+  db.collection("refs").orderBy("createdAt", "desc").limit(1000).onSnapshot(s => { S.refs = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.refs = true; render(); }, () => { S.loaded.refs = true; render(); });
+})();
+})();
+</script>
