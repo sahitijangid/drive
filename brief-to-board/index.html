@@ -174,13 +174,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
         <span class="t">Brand guideline</span>
         <span class="meta" id="guideMeta">Not set up yet</span>
       </button>
+      <button class="navitem" id="importNav" type="button">
+        <span class="t">Growth tracker sheet</span>
+        <span class="meta" id="importMeta">Import briefs from Google Sheets</span>
+      </button>
     </div>
-    <div class="label">Briefs</div>
+    <div class="spread" style="align-items:center"><span class="label">Briefs</span><span class="muted mono" id="briefCount"></span></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <input id="briefSearch" type="text" placeholder="Search briefs" aria-label="Search briefs">
+      <select id="briefCat" aria-label="Filter by category"><option value="">All categories</option></select>
+    </div>
     <div class="navlist briefs" id="briefList"><p class="muted" style="font-size:.86rem">Loading briefs…</p></div>
   </aside>
   <main class="main"><div class="wrap" id="view"></div></main>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (() => {
 "use strict";
@@ -317,8 +326,70 @@ function guideText() {
   return lines.join("\n");
 }
 function briefText(b) {
-  return [["Campaign", b.title], ["Product / offer", b.product], ["Objective", b.objective], ["Audience", b.audience], ["Market", b.market], ["Placements", arr(b.platforms).join(", ")], ["Formats", arr(b.formats).join(", ")], ["Key message", b.message], ["CTA", b.cta], ["Mandatories", b.mandatories], ["Mood words", b.mood], ["Competitors / reference brands", b.competitors], ["Reference links", b.references], ["KPI", b.kpi]]
-    .filter(([, v]) => str(v).trim()).map(([k, v]) => k + ": " + str(v, 1500)).join("\n");
+  const gl = S.thematics || {};
+  const themes = str(b.thematics).split(/\s*,\s*/).filter(Boolean).map(t => { const k = Object.keys(gl).find(g => g.toLowerCase().replace(/[^a-z]/g, "").startsWith(t.toLowerCase().replace(/[^a-z]/g, "").slice(0, 8))); return k ? `${t} (${str(gl[k], 220)})` : t; }).join("; ");
+  return [["Campaign / requirement", b.title], ["Category", b.category], ["Product / offer", b.product], ["Objective", b.objective], ["Angle (headline idea from growth)", b.angle], ["Creative type", b.creativeType], ["Creative thematics to cover", themes], ["Asset requirement", b.assets ? b.assets + (decodeAssets(b.assets) ? " = " + decodeAssets(b.assets) : "") : ""], ["Audience", b.audience], ["Market", b.market], ["Placements", arr(b.platforms).join(", ")], ["Formats", arr(b.formats).join(", ")], ["Messaging", b.message], ["Imagery direction from growth (follow it, then elevate it)", b.imagery], ["CTA", b.cta], ["Mandatories", b.mandatories], ["Mood words", b.mood], ["Competitors / reference brands", b.competitors], ["Products", b.products], ["Reference links", b.references], ["KPI", b.kpi], ["Live date", b.liveText || b.due]]
+    .filter(([, v]) => str(v).trim()).map(([k, v]) => k + ": " + str(v, 2000)).join("\n");
+}
+function decodeAssets(s) { const out = []; for (const m of str(s).matchAll(/(\d+)\s*([SVCG])\b/gi)) { const n = +m[1]; const k = { S: "static", V: "video", C: "carousel", G: "GIF" }[m[2].toUpperCase()]; out.push(n + " " + k + (n > 1 ? "s" : "")); } return out.join(", "); }
+
+// ---------- growth tracker (Google Sheet) import ----------
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const norm = (s) => str(s, 20000).replace(/\s+/g, " ").trim();
+const slug = (s) => str(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+function fnv(s) { let h = 0x811c9dc5; for (const b of new TextEncoder().encode(s)) { h ^= b; h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); }
+const sheetDocId = (tab, title) => "sh-" + fnv(norm(tab).toLowerCase() + "|" + norm(title).toLowerCase()) + "-" + (slug(title) || "brief");
+function isoDate(y, m, d) { if (!(m >= 1 && m <= 12 && d >= 1 && d <= 31)) return { iso: "", text: "" }; const p = (n) => String(n).padStart(2, "0"); return { iso: `${y}-${p(m)}-${p(d)}`, text: `${d} ${MONTHS[m - 1]} ${y}` }; }
+const sheetIdFrom = (u) => { const m = str(u).match(/\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/) || str(u).match(/^([A-Za-z0-9_-]{20,})$/); return m ? m[1] : ""; };
+const TRACKER_COLS = [["title", /^(requirements?|press)$/i], ["category", /^category/i], ["vertical", /^vertical/i], ["sheetStatus", /^status/i], ["priority", /^priority/i], ["live", /live/i], ["dueText", /^due/i], ["revised", /^revised/i], ["owner", /^owner/i], ["spoc", /^spoc/i], ["assets", /^asset req/i], ["angle", /^angle/i], ["creativeType", /^creative type/i], ["thematics", /concept|thematic/i], ["message", /^(messaging|brief)$/i], ["imagery", /^imagery/i], ["references", /reference/i], ["products", /^(urls?|products?|product links?)$/i], ["notes", /^(notes|remarks)$/i]];
+// The tracker types dates as DD/MM/YY; Sheets stores ambiguous ones (07/12/26) as 12 July. Swap those back.
+function trackerDate(XL, v) {
+  if (typeof v === "number" && v > 30000 && v < 80000) { const d = XL.SSF.parse_date_code(v); return d.d <= 12 ? isoDate(d.y, d.d, d.m) : isoDate(d.y, d.m, d.d); }
+  const s = norm(v); const m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (m) { let y = +m[3]; if (y < 100) y += 2000; return isoDate(y, +m[2], +m[1]); }
+  return { iso: "", text: s === "-" ? "" : s };
+}
+function parseTracker(XL, wb, tab) {
+  const ws = wb.Sheets[tab]; if (!ws) return { briefs: [], glossary: {}, error: "That tab isn't in the sheet." };
+  const rows = XL.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
+  const hi = rows.findIndex(r => r.some(c => /^(requirements?|press)$/i.test(norm(c))));
+  if (hi < 0) return { briefs: [], glossary: {}, error: "No “Requirement” header row on this tab." };
+  const head = rows[hi].map(norm); const col = {};
+  for (const [k, re] of TRACKER_COLS) { const i = head.findIndex((hd, ix) => re.test(hd) && !Object.values(col).includes(ix)); if (i >= 0) col[k] = i; }
+  const briefs = [], glossary = {}; let gloss = false;
+  for (let r = hi + 1; r < rows.length; r++) {
+    const row = rows[r]; const t = norm(row[col.title]);
+    if (/^thematic$/i.test(t)) { gloss = true; continue; }
+    if (gloss) { const ex = norm(row[col.title + 1]); if (t && ex) glossary[t] = ex.slice(0, 400); continue; }
+    if (!t || t === "-") continue;
+    const get = (k) => {
+      if (col[k] == null) return ""; const v = row[col[k]]; const link = ws[XL.utils.encode_cell({ r, c: col[k] })]?.l?.Target;
+      let s = typeof v === "number" ? String(v) : norm(v); if (s === "-") s = "";
+      if (link && /^https:\/\//i.test(link) && !s.includes(link)) s = s ? s + " (" + link + ")" : link;
+      return s.slice(0, 3000);
+    };
+    const dt = (k) => col[k] == null ? { iso: "", text: "" } : trackerDate(XL, row[col[k]]);
+    const live = dt("live"), revised = dt("revised");
+    const themes = col.thematics == null ? "" : str(row[col.thematics], 2000).split(/\n+/).map(norm).filter(x => x && x !== "-").join(", ");
+    briefs.push({ id: sheetDocId(tab, t), fields: {
+      title: t.slice(0, 160), category: get("category"), vertical: get("vertical"), sheetStatus: get("sheetStatus"), priority: get("priority"),
+      due: live.iso, liveText: live.text, revised: revised.text, owner: get("owner"), spoc: get("spoc"), assets: get("assets"), angle: get("angle"),
+      creativeType: get("creativeType"), thematics: themes, message: get("message"), imagery: get("imagery"), references: get("references"),
+      products: get("products"), notes: get("notes"), source: "sheet", sheetTab: tab, sheetRow: r + 1 } });
+  }
+  return { briefs, glossary };
+}
+function base64FromResult(res) {
+  const looks = (s) => typeof s === "string" && s.length > 200 && /^[A-Za-z0-9+/=\s]+$/.test(s.slice(0, 4000));
+  for (const b of arr(res?.content)) {
+    if (looks(b?.resource?.blob)) return b.resource.blob;
+    if (looks(b?.blob)) return b.blob;
+    if (looks(b?.data)) return b.data;
+    if (b?.type === "text" && looks(b.text)) return b.text;
+  }
+  const p = res?.payload; if (looks(p)) return p; if (looks(p?.content)) return p.content; if (looks(p?.data)) return p.data;
+  return "";
 }
 
 // ---------- links ----------
@@ -328,7 +399,7 @@ const igUrl = (tag) => { const t = str(tag).replace(/^#/, "").replace(/[^\p{L}\p
 
 // ---------- routing ----------
 function go(view, tab) { S.view = view; if (tab) S.tab = tab; S.confirmDelete = null; const hash = view === "home" ? "" : view; try { if (location.hash.slice(1) !== hash) history.replaceState(null, "", hash ? "#" + hash : location.pathname + location.search); } catch {} render(true); }
-function readHash() { const h0 = (location.hash || "").slice(1); if (h0 === "guide" || h0 === "new") S.view = h0; else if (/^b-[A-Za-z0-9_-]+$/.test(h0)) S.view = h0; }
+function readHash() { const h0 = (location.hash || "").slice(1); if (h0 === "guide" || h0 === "new" || h0 === "import") S.view = h0; else if (/^b-[A-Za-z0-9_-]+$/.test(h0)) S.view = h0; }
 window.addEventListener("hashchange", () => { readHash(); render(true); });
 
 // ---------- sidebar ----------
@@ -339,14 +410,26 @@ function renderSide() {
   else if (g && (arr(g.palette).length || g.photography)) gm.append(h("span", { class: "pill ok" }, "Active"), " " + arr(g.palette).length + " colours · " + (arr(g.dos).length + arr(g.donts).length) + " rules");
   else gm.append(h("span", { class: "pill warn" }, "Set up first"));
   $("guideNav").setAttribute("aria-current", S.view === "guide" ? "true" : "false");
+  $("importNav").setAttribute("aria-current", S.view === "import" ? "true" : "false");
+  const im = $("importMeta"); im.textContent = "";
+  if (S.importCfg?.fileId) im.append(h("span", { class: "pill accent" }, "Linked"), " " + (S.importCfg.lastImportAt ? "synced " + fmtDate(S.importCfg.lastImportAt) : "not synced yet"));
+  else im.append("Import briefs from Google Sheets");
   const list = $("briefList"); list.textContent = "";
   if (!S.loaded.briefs) { list.append(h("p", { class: "muted", style: "font-size:.86rem" }, S.db === null && S.dbChecked ? "Sign in to claude.ai to see the team's briefs." : "Loading briefs…")); return; }
-  if (!S.briefs.length) { list.append(h("p", { class: "muted", style: "font-size:.86rem" }, "No briefs yet. Growth can add one with “New brief”.")); return; }
-  for (const b of S.briefs) {
+  if (!S.briefs.length) { list.append(h("p", { class: "muted", style: "font-size:.86rem" }, "No briefs yet. Import them from the growth tracker or add one with “New brief”.")); return; }
+  const cats = [...new Set(S.briefs.map(b => norm(b.category)).filter(Boolean))].sort();
+  const catSel = $("briefCat"); const curCat = catSel.value;
+  if (catSel.dataset.cats !== cats.join("|")) { catSel.dataset.cats = cats.join("|"); catSel.textContent = ""; catSel.append(h("option", { value: "" }, "All categories"), cats.map(c => h("option", { value: c, selected: c === curCat }, c))); }
+  const q = norm($("briefSearch").value).toLowerCase(), cat = catSel.value;
+  const shown = S.briefs.filter(b => (!cat || norm(b.category) === cat) && (!q || [b.title, b.category, b.angle, b.owner].some(x => str(x).toLowerCase().includes(q))))
+    .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || str(a.title).localeCompare(str(b.title)));
+  $("briefCount").textContent = shown.length === S.briefs.length ? String(S.briefs.length) : shown.length + " / " + S.briefs.length;
+  if (!shown.length) list.append(h("p", { class: "muted", style: "font-size:.86rem" }, "No briefs match."));
+  for (const b of shown) {
     const st = STATUS[b.status] || STATUS.new; const nRefs = S.refs.filter(r => r.briefId === b.id).length;
     list.append(h("button", { class: "navitem", type: "button", "aria-current": S.view === "b-" + b.id ? "true" : "false", onclick: () => go("b-" + b.id, "brief") },
       h("span", { class: "t" }, str(b.title, 120) || "Untitled brief"),
-      h("span", { class: "meta" }, h("span", { class: "pill " + st[1] }, st[0]), str(b.objective, 40), nRefs ? "· " + nRefs + " refs" : null, b.due ? "· due " + b.due : null)));
+      h("span", { class: "meta" }, h("span", { class: "pill " + st[1] }, st[0]), str(b.category || b.objective, 40), b.due ? "· live " + fmtDate(Date.parse(b.due + "T00:00:00")) : b.liveText ? "· " + str(b.liveText, 20) : null, nRefs ? "· " + nRefs + " refs" : null)));
   }
 }
 
@@ -355,11 +438,12 @@ function render(force) {
   renderSide();
   const key = S.view + "|" + S.tab;
   // Views with editable forms render once per entry so typing is never wiped by live updates.
-  const formView = S.view === "guide" || S.view === "new" || (S.view.startsWith("b-") && S.tab === "edit");
+  const formView = S.view === "guide" || S.view === "new" || S.view === "import" || (S.view.startsWith("b-") && S.tab === "edit");
   if (!force && formView && S.renderedKey === key) return;
   const v = $("view"); const y = window.scrollY; v.textContent = "";
   S.renderedKey = key;
   if (S.view === "guide") v.append(...viewGuide());
+  else if (S.view === "import") v.append(...viewImport());
   else if (S.view === "new") v.append(...viewBriefForm(null));
   else if (S.view.startsWith("b-")) {
     const b = S.briefs.find(x => "b-" + x.id === S.view);
@@ -379,7 +463,7 @@ function viewHome() {
   const guideReady = S.guide && (arr(S.guide.palette).length || S.guide.photography);
   const steps = [
     ["Brand guideline", guideReady ? "Set. Every research run and image review is checked against it." : "Add your palette, photo style and do/don't rules once. Everything else is scored against it.", guideReady ? "Edit guideline" : "Set up guideline", () => go("guide"), !guideReady],
-    ["Brief from growth", "Campaign, audience, placements, formats, offer and mandatories.", "New brief", () => go("new"), guideReady],
+    ["Brief from growth", "Pull the month's asks straight from the growth tracker sheet, or add a brief by hand.", "Import from sheet", () => go("import"), guideReady],
     ["Visual research", "Claude turns the brief into 3 on-brand art directions plus ready-to-click searches on Pinterest, Meta Ad Library and Instagram.", null],
     ["References", "Paste or drop screenshots you collect. Each is colour-matched to your palette and reviewed by Claude against the guideline.", null],
     ["Mood board", "Pin the best references, generate an art-direction note, export the board as a PNG.", null]
@@ -409,13 +493,13 @@ function viewBriefForm(existing) {
     opts.hint ? h("span", { class: "hint" }, opts.hint) : null);
   const msg = h("p", { class: "status", "aria-live": "polite" });
   const fill = (src) => {
-    for (const k of ["title", "product", "audience", "message", "cta", "mandatories", "mood", "competitors", "references", "kpi", "due"]) { const el = $("bf_" + k); if (el) el.value = str(src[k]); }
-    $("bf_objective").value = src.objective || OBJECTIVES[0]; $("bf_market").value = src.market || "ALL";
+    for (const k of ["title", "product", "audience", "message", "cta", "mandatories", "mood", "competitors", "references", "kpi", "due", "category", "angle", "creativeType", "thematics", "assets", "imagery", "products"]) { const el = $("bf_" + k); if (el) el.value = str(src[k]); }
+    $("bf_objective").value = src.objective || ""; $("bf_market").value = src.market || "ALL";
     for (const [gid, vals] of [["bf_platforms", src.platforms], ["bf_formats", src.formats]]) document.querySelectorAll("#" + gid + " .chip").forEach(c => c.setAttribute("aria-pressed", arr(vals).includes(c.dataset.v) ? "true" : "false"));
   };
   const save = async () => {
     const data = {};
-    for (const k of ["title", "product", "audience", "message", "cta", "mandatories", "mood", "competitors", "references", "kpi", "due"]) data[k] = str($("bf_" + k).value, 3000).trim();
+    for (const k of ["title", "product", "audience", "message", "cta", "mandatories", "mood", "competitors", "references", "kpi", "due", "category", "angle", "creativeType", "thematics", "assets", "imagery", "products"]) data[k] = str($("bf_" + k).value, 3000).trim();
     data.objective = $("bf_objective").value; data.market = $("bf_market").value;
     data.platforms = chipVals("bf_platforms"); data.formats = chipVals("bf_formats");
     if (!data.title) { msg.textContent = "Give the brief a campaign name."; $("bf_title").focus(); return; }
@@ -434,11 +518,17 @@ function viewBriefForm(existing) {
       h("div", { class: "form" },
         f("bf_title", "Campaign name", { req: true, full: true, ph: "e.g. Monsoon fitness offer, Bengaluru" }),
         f("bf_product", "Product / offer", { ph: "What are we selling, and at what price or offer?" }),
-        h("div", { class: "field" }, h("label", { for: "bf_objective" }, "Objective"), h("select", { id: "bf_objective" }, OBJECTIVES.map(o => h("option", { value: o, selected: (b.objective || OBJECTIVES[0]) === o }, o)))),
+        h("div", { class: "field" }, h("label", { for: "bf_objective" }, "Objective"), h("select", { id: "bf_objective" }, h("option", { value: "", selected: !b.objective }, "Not specified"), OBJECTIVES.map(o => h("option", { value: o, selected: b.objective === o }, o)))),
+        f("bf_category", "Category", { ph: "Apparel, Footwear, Treadmill…" }),
+        f("bf_angle", "Angle", { ph: "The headline idea, e.g. Winter Is Another Training Ground" }),
+        f("bf_creativeType", "Creative type", { ph: "Batch Produce, Creative Concepts, Inhouse Shoot" }),
+        f("bf_assets", "Asset requirement", { ph: "e.g. 2S, 1V, 1C (statics, videos, carousels, GIFs)" }),
+        f("bf_thematics", "Concepts / thematics", { full: true, ph: "Core RTB, Question-led, Showcase, Social Proof…" }),
+        f("bf_imagery", "Imagery direction", { area: true, full: true, ph: "What growth wants to see in the visuals" }),
         f("bf_audience", "Audience", { area: true, full: true, ph: "Who, where, what they care about, what stops them buying" }),
         h("div", { class: "field" }, h("span", { class: "lab" }, "Placements"), chipGroup("bf_platforms", PLATFORMS, b.platforms)),
         h("div", { class: "field" }, h("span", { class: "lab" }, "Formats / aspect ratios"), chipGroup("bf_formats", FORMATS, b.formats)),
-        f("bf_message", "Key message", { area: true, rows: 2, ph: "The one thing the ad must say" }),
+        f("bf_message", "Messaging", { area: true, rows: 3, ph: "What the ad must say, RTBs to highlight" }),
         f("bf_mandatories", "Mandatories", { area: true, rows: 2, ph: "Offer text, legal line, logo, product shots that must appear" }),
         f("bf_cta", "CTA", { ph: "Sign up, Book a free trial…" }),
         f("bf_kpi", "KPI / success metric", { ph: "CPA, CTR, ROAS target" }),
@@ -446,6 +536,7 @@ function viewBriefForm(existing) {
         h("div", { class: "field" }, h("label", { for: "bf_market" }, "Market"), h("select", { id: "bf_market" }, MARKETS.map(([v, l]) => h("option", { value: v, selected: (b.market || "ALL") === v }, l))), h("span", { class: "hint" }, "Sets the country filter on Meta Ad Library links.")),
         f("bf_competitors", "Competitors / brands to study", { area: true, rows: 2, ph: "Names to look up in Meta Ad Library" }),
         f("bf_references", "Reference links from growth", { area: true, rows: 2, ph: "Past winning ads, landing page, inspiration" }),
+        f("bf_products", "Products / URLs", { area: true, rows: 2, ph: "Product names or links" }),
         f("bf_due", "Due date", { type: "date" })),
       h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: save }, existing ? "Save changes" : "Save brief"), h("button", { class: "btn ghost", type: "button", onclick: () => existing ? go("b-" + existing.id, "brief") : go("home") }, "Cancel"), msg))
   ];
@@ -491,7 +582,8 @@ async function deleteBrief(b, refs) {
 function tabBrief(b) {
   const item = (k, v) => str(v).trim() ? h("div", null, h("span", { class: "label" }, k), h("span", { class: "v" }, str(v, 3000))) : null;
   return h("div", { class: "panel" },
-    h("div", { class: "kv" }, item("Product / offer", b.product), item("Objective", b.objective), item("Audience", b.audience), item("Placements", arr(b.platforms).join(", ")), item("Formats", arr(b.formats).join(", ")), item("Key message", b.message), item("CTA", b.cta), item("Mandatories", b.mandatories), item("Mood words", b.mood), item("Competitors", b.competitors), item("Market", (MARKETS.find(m => m[0] === b.market) || [0, b.market])[1]), item("KPI", b.kpi), item("References", b.references)),
+    b.source === "sheet" ? h("p", { class: "muted", style: "font-size:.84rem" }, "Imported from the growth tracker · tab “" + str(b.sheetTab, 60) + "”, row " + (b.sheetRow || "?") + (b.importedAt ? " · last synced " + fmtDate(b.importedAt) : "")) : null,
+    h("div", { class: "kv" }, item("Category", b.category), item("Angle", b.angle), item("Live date", b.liveText || b.due), item("Revised date", b.revised), item("Asset requirement", b.assets ? b.assets + (decodeAssets(b.assets) ? " (" + decodeAssets(b.assets) + ")" : "") : ""), item("Creative type", b.creativeType), item("Thematics", b.thematics), item("Owner", b.owner), item("SPOC", b.spoc), item("Tracker status", b.sheetStatus), item("Priority", b.priority), item("Product / offer", b.product), item("Objective", b.objective), item("Imagery direction", b.imagery), item("Products", b.products), item("Notes", b.notes), item("Audience", b.audience), item("Placements", arr(b.platforms).join(", ")), item("Formats", arr(b.formats).join(", ")), item("Messaging", b.message), item("CTA", b.cta), item("Mandatories", b.mandatories), item("Mood words", b.mood), item("Competitors", b.competitors), item("Market", (MARKETS.find(m => m[0] === b.market) || [0, b.market])[1]), item("KPI", b.kpi), item("References", b.references)),
     h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: () => go("b-" + b.id, "research") }, b.research ? "View research" : "Start visual research")));
 }
 
@@ -811,6 +903,100 @@ async function exportBoard(b, onBoard) {
   } catch (e) { if (e?.code !== "cancelled" && e?.code !== "declined") toast("Couldn't export the board. Try again."); }
 }
 
+// ---------- import view ----------
+S.imp = { url: "", wb: null, tabs: [], tab: "", parsed: null, loading: false, err: "", writing: false };
+function mcpErr(e) {
+  const c = e?.code;
+  if (c === "server_not_connected" || c === "server_not_found") return "Google Drive isn't connected to your Claude account. Connect it in claude.ai under Settings → Connectors, then try again.";
+  if (c === "needs_reauth") return "Your Google Drive connection needs to be renewed. Reconnect it in claude.ai under Settings → Connectors.";
+  if (c === "not_granted" || c === "consent_required" || c === "approval_required") return "This page needs your permission to read Google Drive. Click Load sheet again and choose Allow.";
+  if (c === "blocked_by_policy") return "Your organization doesn't allow this page to use Google Drive.";
+  if (c === "tool_error") return "Google Drive couldn't open that file. Check the link and that you have access to the sheet.";
+  if (c === "rate_limited") return "Google Drive is busy. Wait a moment and try again.";
+  return "Couldn't reach Google Drive. Try again.";
+}
+async function loadSheet() {
+  const I = S.imp; const fileId = sheetIdFrom(I.url || S.importCfg?.url || S.importCfg?.fileId);
+  if (!fileId) { I.err = "Paste the Google Sheets link first."; render(true); return; }
+  if (!window.XLSX) { I.err = "The spreadsheet reader didn't load. Reload the page and try again."; render(true); return; }
+  if (!S.mcp) { I.err = "Google Drive isn't available in this view. Open the page on claude.ai while signed in."; render(true); return; }
+  I.loading = true; I.err = ""; I.parsed = null; render(true);
+  try {
+    const res = await S.mcp.callTool("Google Drive", "download_file_content", { fileId, exportMimeType: XLSX_MIME }, { cache: false });
+    const b64 = base64FromResult(res);
+    if (!b64) throw { code: "shape" };
+    I.wb = XLSX.read(b64.replace(/\s+/g, ""), { type: "base64", cellDates: false });
+    I.fileId = fileId;
+    const names = I.wb.SheetNames; const asks = names.filter(n => /asks/i.test(n));
+    I.tabs = [...asks, ...names.filter(n => !asks.includes(n))];
+    I.tab = names.includes(S.importCfg?.tab) ? S.importCfg.tab : (asks[0] || names[0]);
+    I.parsed = parseTracker(XLSX, I.wb, I.tab);
+    if (S.canEdit && S.db && (!S.importCfg || S.importCfg.fileId !== fileId)) S.db.doc("brand/import").set({ ...(S.importCfg || {}), fileId, url: I.url || S.importCfg?.url || "", tab: I.tab, updatedAt: Date.now() }).catch(() => {});
+  } catch (e) { I.err = e?.code === "shape" ? "Google Drive answered, but not with a spreadsheet file this page can read. Tell Claude so the import can be adjusted." : e?.code ? mcpErr(e) : "That file couldn't be read as a spreadsheet."; }
+  finally { I.loading = false; render(true); }
+}
+function diffBrief(p) {
+  const ex = S.briefs.find(b => b.id === p.id); if (!ex) return "new";
+  return Object.entries(p.fields).some(([k, v]) => str(ex[k]) !== str(v)) ? "changed" : "same";
+}
+async function runImport() {
+  const I = S.imp; if (!I.parsed || !S.db) return;
+  const todo = I.parsed.briefs.map(p => ({ p, st: diffBrief(p) })).filter(x => x.st !== "same");
+  I.writing = true; I.err = ""; render(true);
+  let n = 0, fail = 0; const now = Date.now();
+  for (const { p, st } of todo) {
+    try {
+      if (st === "new") await S.db.doc("briefs/" + p.id).set({ ...p.fields, objective: "", status: "new", createdAt: now, createdBy: S.me?.id || null, importedAt: now });
+      else await S.db.doc("briefs/" + p.id).update({ ...p.fields, importedAt: now });
+      n++;
+    } catch { fail++; }
+  }
+  if (S.canEdit) {
+    if (Object.keys(I.parsed.glossary).length) S.db.doc("brand/thematics").set({ items: I.parsed.glossary, updatedAt: now }).catch(() => {});
+    S.db.doc("brand/import").set({ ...(S.importCfg || {}), fileId: I.fileId, url: I.url || S.importCfg?.url || "", tab: I.tab, lastImportAt: now, updatedAt: now }).catch(() => {});
+  }
+  I.writing = false;
+  if (fail) I.err = fail + " brief" + (fail === 1 ? "" : "s") + " couldn't be saved. You may need Contributor access.";
+  toast(n ? "Imported " + n + " brief" + (n === 1 ? "" : "s") : "Nothing new to import");
+  render(true);
+}
+function viewImport() {
+  const I = S.imp; const cfg = S.importCfg || {};
+  if (!I.url) I.url = cfg.url || (cfg.fileId ? "https://docs.google.com/spreadsheets/d/" + cfg.fileId + "/edit" : "");
+  const rows = I.parsed ? I.parsed.briefs.map(p => ({ p, st: diffBrief(p) })) : [];
+  const nNew = rows.filter(r => r.st === "new").length, nCh = rows.filter(r => r.st === "changed").length;
+  const stPill = { new: ["accent", "New"], changed: ["warn", "Updated in sheet"], same: ["", "Already imported"] };
+  return [
+    dbBanner(),
+    h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:68ch" }, h("div", { class: "label" }, "Growth tracker"), h("h1", null, "Import briefs from the tracker sheet"),
+      h("p", { class: "muted" }, "Reads the sheet through your own Google Drive connection. Each row becomes a brief. Rows already imported are updated with any changes from the sheet; research, references and boards are kept.")),
+    h("div", { class: "panel" },
+      h("div", { class: "field" }, h("label", { for: "impUrl" }, "Google Sheets link"),
+        h("input", { id: "impUrl", type: "text", value: I.url, placeholder: "https://docs.google.com/spreadsheets/d/…", oninput: (e) => { I.url = e.target.value; } }),
+        h("span", { class: "hint" }, S.canEdit ? "Saved for the team once it loads." : "Ask an editor to save the team's link. You can still load any sheet you have access to.")),
+      h("div", { class: "row" },
+        h("button", { class: "btn primary", type: "button", disabled: I.loading || I.writing, onclick: loadSheet }, I.loading ? "Loading…" : I.wb ? "Reload sheet" : "Load sheet"),
+        I.loading ? h("span", { class: "status" }, h("span", { class: "spin" }), "Reading the sheet from Google Drive…") : null,
+        I.wb ? [h("label", { for: "impTab", class: "label" }, "Tab"), h("select", { id: "impTab", style: "width:auto;max-width:100%", onchange: (e) => { I.tab = e.target.value; I.parsed = parseTracker(XLSX, I.wb, I.tab); render(true); } }, I.tabs.map(t => h("option", { value: t, selected: t === I.tab }, t)))] : null),
+      I.err ? h("p", { style: "color:var(--bad)" }, I.err) : null),
+    I.parsed ? h("div", { class: "panel" },
+      I.parsed.error ? h("p", { style: "color:var(--bad)" }, I.parsed.error) : [
+        h("div", { class: "spread", style: "align-items:center" },
+          h("div", { class: "row" }, h("b", null, rows.length + " briefs on “" + I.tab + "”"), h("span", { class: "pill accent" }, nNew + " new"), h("span", { class: "pill warn" }, nCh + " updated"), Object.keys(I.parsed.glossary).length ? h("span", { class: "pill" }, Object.keys(I.parsed.glossary).length + " thematic definitions") : null),
+          I.writing ? h("span", { class: "status" }, h("span", { class: "spin" }), "Importing…") : h("button", { class: "btn primary", type: "button", disabled: !S.db || !(nNew + nCh), onclick: runImport }, nNew + nCh ? "Import " + (nNew + nCh) + " brief" + (nNew + nCh === 1 ? "" : "s") : "Everything is up to date")),
+        h("div", { style: "overflow-x:auto" }, h("table", { style: "width:100%;border-collapse:collapse;font-size:.88rem" },
+          h("thead", null, h("tr", null, ["Requirement", "Category", "Live date", "Assets", "Angle", ""].map(t => h("th", { style: "text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap", class: "label" }, t)))),
+          h("tbody", null, rows.map(({ p, st }) => h("tr", null,
+            h("td", { style: "padding:8px;border-bottom:1px solid var(--line);font-weight:600" }, p.fields.title),
+            h("td", { style: "padding:8px;border-bottom:1px solid var(--line)" }, p.fields.category),
+            h("td", { style: "padding:8px;border-bottom:1px solid var(--line);white-space:nowrap", class: "mono" }, p.fields.liveText),
+            h("td", { style: "padding:8px;border-bottom:1px solid var(--line);white-space:nowrap", class: "mono" }, p.fields.assets),
+            h("td", { style: "padding:8px;border-bottom:1px solid var(--line);min-width:220px" }, p.fields.angle),
+            h("td", { style: "padding:8px;border-bottom:1px solid var(--line)" }, h("span", { class: "pill " + stPill[st][0] }, stPill[st][1]))))))),
+        h("p", { class: "muted", style: "font-size:.82rem" }, "Dates are read as day/month/year, the way the tracker writes them.")]) : null
+  ];
+}
+
 // ---------- brand guideline ----------
 function viewGuide() {
   const g = S.guide || {}; const editable = S.canEdit;
@@ -894,17 +1080,22 @@ Reply with ONLY this JSON object (empty string or empty array where the guidelin
 // ---------- boot ----------
 $("newBriefBtn").addEventListener("click", () => go("new"));
 $("guideNav").addEventListener("click", () => go("guide"));
+$("importNav").addEventListener("click", () => go("import"));
+$("briefSearch").addEventListener("input", renderSide);
+$("briefCat").addEventListener("change", renderSide);
 readHash(); render(true);
 
 (async () => {
   const c = window.claude;
   if (!c?.use) { S.dbChecked = true; S.capsChecked = true; S.loaded.guide = true; render(true); return; }
-  const [db, user, sample, assets, downloads] = await Promise.all(["db", "user", "sample", "assets", "downloads"].map(n => c.use(n).catch(() => null)));
-  Object.assign(S, { db, user, sample, assets, downloads, dbChecked: true, capsChecked: true });
+  const [db, user, sample, assets, downloads, mcp] = await Promise.all(["db", "user", "sample", "assets", "downloads", "mcp"].map(n => c.use(n).catch(() => null)));
+  Object.assign(S, { db, user, sample, assets, downloads, mcp, dbChecked: true, capsChecked: true });
   if (user) { try { S.me = await user.me(); } catch {} try { S.canEdit = !!(await user.canEdit()); } catch {} }
   if (sample) { try { S.limits = await sample.limits(); } catch {} }
   if (!db) { S.loaded.guide = true; render(true); return; }
   const timer = setTimeout(() => { if (!S.loaded.briefs) { S.loaded.briefs = true; S.loaded.guide = true; render(true); } }, 10000);
+  db.doc("brand/import").onSnapshot(s => { S.importCfg = s.exists ? s.data() : null; render(); }, () => {});
+  db.doc("brand/thematics").onSnapshot(s => { S.thematics = s.exists ? (s.data().items || {}) : {}; }, () => {});
   db.doc("brand/guide").onSnapshot(s => { S.guide = s.exists ? s.data() : null; S.loaded.guide = true; render(); }, () => { S.loaded.guide = true; render(); });
   db.collection("briefs").orderBy("createdAt", "desc").limit(200).onSnapshot(s => { clearTimeout(timer); S.briefs = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.briefs = true; render(); }, () => { S.loaded.briefs = true; render(); });
   db.collection("refs").orderBy("createdAt", "desc").limit(1000).onSnapshot(s => { S.refs = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.refs = true; render(); }, () => { S.loaded.refs = true; render(); });
