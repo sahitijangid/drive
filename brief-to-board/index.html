@@ -131,6 +131,18 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .ref .body { padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: .86rem; }
 .ref .body ul { margin: 0; padding-left: 16px; }
 
+.rate { display: flex; gap: 6px; }
+.rate button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 12px; font-size: .82rem; font-weight: 600; cursor: pointer; color: var(--muted); }
+.rate button:hover { border-color: var(--muted); color: var(--ink); }
+.rate button svg { width: 14px; height: 14px; }
+.rate button.like[aria-pressed="true"] { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.rate button.pass[aria-pressed="true"] { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+.ref.liked { border-color: var(--ok); }
+.ref.passed { opacity: .62; }
+.ref.passed:hover { opacity: 1; }
+.tagpill { align-self: flex-start; background: var(--ink); color: var(--bg); border-radius: 99px; padding: 2px 9px; font-size: .68rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.sechead { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.libgroup { display: flex; flex-direction: column; gap: 12px; }
 .board { columns: 3 240px; column-gap: 12px; }
 .board figure { break-inside: avoid; margin: 0 0 12px; border-radius: 8px; overflow: hidden; background: var(--sunk); position: relative; }
 .board figure img { width: 100%; display: block; }
@@ -173,6 +185,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
       <button class="navitem" id="guideNav" type="button">
         <span class="t">Brand guideline</span>
         <span class="meta" id="guideMeta">Not set up yet</span>
+      </button>
+      <button class="navitem" id="libNav" type="button">
+        <span class="t">Reference library</span>
+        <span class="meta" id="libMeta">All references, liked and passed</span>
       </button>
       <button class="navitem" id="importNav" type="button">
         <span class="t">Growth tracker sheet</span>
@@ -229,7 +245,8 @@ const S = {
   view: "home", tab: "brief", renderedKey: "",
   busy: {}, ctl: {}, err: {}, progress: {},
   upload: { source: "pinterest", link: "", note: "", queue: 0 },
-  blobCache: new Map(), confirmDelete: null, profiles: {}
+  blobCache: new Map(), confirmDelete: null, profiles: {},
+  curated: [], ratings: {}, taste: null, libFilter: "all"
 };
 
 // ---------- helpers ----------
@@ -400,7 +417,7 @@ const igUrl = (tag) => { const t = str(tag).replace(/^#/, "").replace(/[^\p{L}\p
 
 // ---------- routing ----------
 function go(view, tab) { S.view = view; if (tab) S.tab = tab; S.confirmDelete = null; const hash = view === "home" ? "" : view; try { if (location.hash.slice(1) !== hash) history.replaceState(null, "", hash ? "#" + hash : location.pathname + location.search); } catch {} render(true); }
-function readHash() { const h0 = (location.hash || "").slice(1); if (h0 === "guide" || h0 === "new" || h0 === "import") S.view = h0; else if (/^b-[A-Za-z0-9_-]+$/.test(h0)) S.view = h0; }
+function readHash() { const h0 = (location.hash || "").slice(1); if (h0 === "guide" || h0 === "new" || h0 === "import" || h0 === "library") S.view = h0; else if (/^b-[A-Za-z0-9_-]+$/.test(h0)) S.view = h0; }
 window.addEventListener("hashchange", () => { readHash(); render(true); });
 
 // ---------- sidebar ----------
@@ -412,6 +429,9 @@ function renderSide() {
   else gm.append(h("span", { class: "pill warn" }, "Set up first"));
   $("guideNav").setAttribute("aria-current", S.view === "guide" ? "true" : "false");
   $("importNav").setAttribute("aria-current", S.view === "import" ? "true" : "false");
+  $("libNav").setAttribute("aria-current", S.view === "library" ? "true" : "false");
+  const lm = $("libMeta"); lm.textContent = ""; const allRefs = S.curated.length + S.refs.length; const rv = Object.values(S.ratings);
+  if (allRefs) lm.append(allRefs + " references", rv.length ? h("span", { class: "pill ok" }, rv.filter(x => x === "like").length + " liked") : null); else lm.append("All references, liked and passed");
   const im = $("importMeta"); im.textContent = "";
   if (S.importCfg?.fileId) im.append(h("span", { class: "pill accent" }, "Linked"), " " + (S.importCfg.lastImportAt ? "synced " + fmtDate(S.importCfg.lastImportAt) : "not synced yet"));
   else im.append("Import briefs from Google Sheets");
@@ -442,15 +462,17 @@ function render(force) {
   const formView = S.view === "guide" || S.view === "new" || S.view === "import" || (S.view.startsWith("b-") && S.tab === "edit");
   if (!force && formView && S.renderedKey === key) return;
   const v = $("view"); const y = window.scrollY; v.textContent = "";
+  const put = (...parts) => v.append(...parts.flat(Infinity).filter(x => x != null && x !== false));
   S.renderedKey = key;
-  if (S.view === "guide") v.append(...viewGuide());
-  else if (S.view === "import") v.append(...viewImport());
-  else if (S.view === "new") v.append(...viewBriefForm(null));
+  if (S.view === "guide") put(...viewGuide());
+  else if (S.view === "import") put(...viewImport());
+  else if (S.view === "library") put(...viewLibrary());
+  else if (S.view === "new") put(...viewBriefForm(null));
   else if (S.view.startsWith("b-")) {
     const b = S.briefs.find(x => "b-" + x.id === S.view);
-    if (!b) v.append(S.loaded.briefs ? h("div", { class: "panel empty" }, h("h2", null, "Brief not found"), h("p", null, "It may have been deleted."), h("button", { class: "btn", type: "button", onclick: () => go("home") }, "Back to briefs")) : h("div", { class: "status" }, h("span", { class: "spin" }), "Loading brief…"));
-    else v.append(...viewBrief(b));
-  } else v.append(...viewHome());
+    if (!b) put(S.loaded.briefs ? h("div", { class: "panel empty" }, h("h2", null, "Brief not found"), h("p", null, "It may have been deleted."), h("button", { class: "btn", type: "button", onclick: () => go("home") }, "Back to briefs")) : h("div", { class: "status" }, h("span", { class: "spin" }), "Loading brief…"));
+    else put(...viewBrief(b));
+  } else put(...viewHome());
   if (!force) window.scrollTo(0, y);
 }
 
@@ -545,9 +567,9 @@ function viewBriefForm(existing) {
 
 // ---------- brief detail ----------
 function viewBrief(b) {
-  const refs = S.refs.filter(r => r.briefId === b.id); const onBoard = refs.filter(r => r.onBoard);
+  const refs = S.refs.filter(r => r.briefId === b.id); const onBoard = boardItems(b);
   const st = STATUS[b.status] || STATUS.new;
-  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length], ["board", "Mood board", onBoard.length]];
+  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length + curatedFor(b.id).length], ["board", "Mood board", onBoard.length]];
   if (S.tab === "edit") return viewBriefForm(b);
   if (!tabs.some(t => t[0] === S.tab)) S.tab = "brief";
   const body = S.tab === "brief" ? tabBrief(b) : S.tab === "research" ? tabResearch(b) : S.tab === "refs" ? tabRefs(b, refs) : tabBoard(b, onBoard);
@@ -784,7 +806,11 @@ function tabRefs(b, refs) {
       h("input", { id: "upNote", type: "text", placeholder: "Why you saved it (optional)", value: S.upload.note, oninput: (e) => S.upload.note = e.target.value })),
     S.upload.queue ? h("span", { class: "status" }, h("span", { class: "spin" }), "Adding " + S.upload.queue + "…") : null, fileIn);
   S.pasteTarget = b;
+  const cur = curatedFor(b.id);
   return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
+    cur.length ? h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length + " references found on Pinterest for this brief. Like what you'd use; liked images go on the mood board and teach Claude your taste.")), rateSummary(cur.map(c => c.id))) : null,
+    cur.length ? h("div", { class: "refs" }, cur.map(c => curatedCard(c))) : null,
+    h("div", { class: "sechead", style: cur.length ? "margin-top:12px" : "" }, h("div", null, h("h2", null, "Added by your team"), h("p", { class: "muted", style: "font-size:.88rem" }, "Screenshots from Pinterest, Instagram and Meta Ad Library, colour-matched and reviewed against your guideline."))),
     S.assets === null && S.capsChecked ? h("div", { class: "notice warn" }, h("span", null, "Your access level can't upload images. Ask the artifact owner for Contributor access.")) : drop,
     refs.length ? h("div", { class: "spread", style: "align-items:center" },
       h("div", { class: "row" }, h("b", null, refs.length + " references"), h("span", { class: "muted", style: "font-size:.86rem" }, refs.filter(r => r.onBoard).length + " pinned to board")),
@@ -792,11 +818,11 @@ function tabRefs(b, refs) {
         busy ? [h("span", { class: "status" }, h("span", { class: "spin" }), "Claude is reviewing against the guideline…"), h("button", { class: "btn sm", type: "button", onclick: () => S.ctl["v" + b.id]?.abort() }, "Stop")]
           : h("button", { class: "btn primary sm", type: "button", disabled: !unreviewed || !S.sample || !S.limits?.images, title: !S.limits?.images ? "Image review needs claude.ai in a browser" : "", onclick: () => reviewRefs(b, refs) }, unreviewed ? "Review " + Math.min(unreviewed, S.limits?.images?.maxCount || 5, 8) + " with Claude" : "All reviewed"))) : null,
     S.err["v" + b.id] ? h("p", { style: "color:var(--bad)" }, S.err["v" + b.id]) : null,
-    refs.length ? h("div", { class: "refs" }, refs.map(r => refCard(r))) : h("div", { class: "empty" }, h("h2", null, "No references yet"), h("p", null, "Run research for search links, then paste what you find here.")));
+    refs.length ? h("div", { class: "refs" }, refs.map(r => refCard(r))) : h("div", { class: "empty" }, h("h2", null, "Nothing added yet"), h("p", null, "Run research for search links, then paste what you find here.")));
 }
 function refCard(r) {
-  const fit = paletteFit(r.colors); const lk = safeUrl(r.link); const v = r.review;
-  return h("article", { class: "ref" + (r.onBoard ? " on" : "") },
+  const fit = paletteFit(r.colors); const lk = safeUrl(r.link); const v = r.review; const rk = "u_" + r.id; const rt = S.ratings[rk];
+  return h("article", { class: "ref" + (r.onBoard ? " on" : "") + (rt === "like" ? " liked" : rt === "pass" ? " passed" : "") },
     h("div", { class: "img" }, h("img", { src: r.assetId ? "/_blob/" + r.assetId : (safeUrl(r.url) || r.url), alt: "Reference from " + (SRC_LABEL[r.source] || "other source"), loading: "lazy" })),
     h("div", { class: "body" },
       h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + (SRC_LABEL[r.source] ? r.source : "other") }, SRC_LABEL[r.source] || "Other"), lk ? h("a", { href: lk, target: "_blank", rel: "noopener", style: "font-size:.8rem" }, "Open ↗") : null),
@@ -806,6 +832,7 @@ function refCard(r) {
       v?.direction ? h("p", null, h("span", { class: "label" }, "Fits "), v.direction) : null,
       v?.borrow ? h("p", null, h("b", null, "Borrow: "), v.borrow) : null,
       arr(v?.conflicts).length ? h("ul", { style: "color:var(--bad)" }, v.conflicts.map(c => h("li", null, c))) : null,
+      rateButtons(rk, "upload", r.briefId),
       h("div", { class: "row", style: "gap:6px;margin-top:2px" },
         h("button", { class: "btn sm" + (r.onBoard ? " primary" : ""), type: "button", onclick: () => S.db?.doc("refs/" + r.id).update({ onBoard: !r.onBoard }).catch(() => toast("Couldn't update. You may not have permission.")) }, r.onBoard ? "On board ✓" : "Add to board"),
         S.confirmDelete === r.id ? [h("button", { class: "btn sm danger", type: "button", onclick: () => removeRef(r) }, "Remove"), h("button", { class: "btn sm ghost", type: "button", onclick: () => { S.confirmDelete = null; render(true); } }, "Keep")]
@@ -821,6 +848,120 @@ document.addEventListener("paste", (e) => {
   const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
   if (files.length) { e.preventDefault(); addFiles(S.pasteTarget, files); }
 });
+
+// ---------- curated picks, ratings and taste ----------
+const ICON = { up: "M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z", down: "M17 14V2M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" };
+function svgIcon(d) {
+  const ns = "http://www.w3.org/2000/svg"; const sv = document.createElementNS(ns, "svg");
+  sv.setAttribute("viewBox", "0 0 24 24"); sv.setAttribute("fill", "none"); sv.setAttribute("stroke", "currentColor"); sv.setAttribute("stroke-width", "2.2"); sv.setAttribute("stroke-linecap", "round"); sv.setAttribute("stroke-linejoin", "round"); sv.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); sv.append(p); return sv;
+}
+const curatedFor = (briefId) => S.curated.filter(c => c.briefId === briefId);
+const blobSrc = (u) => /^\/_blob\/[0-9a-f]{32}$/.test(str(u)) ? u : "";
+function boardItems(b) {
+  return [...S.refs.filter(r => r.briefId === b.id && r.onBoard),
+    ...curatedFor(b.id).filter(c => S.ratings[c.id] === "like").map(c => ({ id: c.id, assetId: c.assetId, url: c.url, source: "pinterest", curated: true, label: str(c.label, 80), note: str(c.note, 300), colors: [] }))];
+}
+async function setRating(key, kind, briefId, val) {
+  if (!S.db || !S.me?.id) { toast("Sign in on claude.ai to rate references."); return; }
+  const prev = S.ratings[key]; const ref = S.db.collection("data/users/" + S.me.id).doc("r_" + key);
+  if (prev === val) delete S.ratings[key]; else S.ratings[key] = val;
+  render();
+  try { if (prev === val) await ref.delete(); else await ref.set({ ref: key, kind, briefId: briefId || "", rating: val, at: Date.now() }); }
+  catch { if (prev) S.ratings[key] = prev; else delete S.ratings[key]; render(); toast("Couldn't save that rating. Try again."); }
+}
+function rateButtons(key, kind, briefId) {
+  const r = S.ratings[key];
+  return h("div", { class: "rate", role: "group", "aria-label": "Rate this reference" },
+    h("button", { type: "button", class: "like", "aria-pressed": r === "like" ? "true" : "false", title: "Like: goes on the mood board and teaches Claude your taste", onclick: () => setRating(key, kind, briefId, "like") }, svgIcon(ICON.up), r === "like" ? "Liked" : "Like"),
+    h("button", { type: "button", class: "pass", "aria-pressed": r === "pass" ? "true" : "false", title: "Pass: Claude will suggest less of this", onclick: () => setRating(key, kind, briefId, "pass") }, svgIcon(ICON.down), r === "pass" ? "Passed" : "Pass"));
+}
+function rateSummary(keys) {
+  const l = keys.filter(k => S.ratings[k] === "like").length, p = keys.filter(k => S.ratings[k] === "pass").length;
+  return h("div", { class: "row", style: "gap:6px" }, h("span", { class: "pill ok" }, l + " liked"), h("span", { class: "pill bad" }, p + " passed"), h("span", { class: "pill" }, (keys.length - l - p) + " to rate"));
+}
+function curatedCard(c) {
+  const rt = S.ratings[c.id];
+  return h("article", { class: "ref" + (rt === "like" ? " liked" : rt === "pass" ? " passed" : "") },
+    h("div", { class: "img" }, blobSrc(c.url) ? h("img", { src: c.url, alt: str(c.label, 80) + " reference", loading: "lazy" }) : null),
+    h("div", { class: "body" },
+      h("span", { class: "tagpill" }, str(c.label, 60)),
+      h("p", null, str(c.note, 300)),
+      h("span", { class: "src pinterest" }, "Pinterest · “" + str(c.query, 80) + "”"),
+      rateButtons(c.id, "curated", c.briefId)));
+}
+function ratedItems() {
+  const title = (id) => str(S.briefs.find(b => b.id === id)?.title, 80) || "Unassigned";
+  const out = [];
+  for (const c of S.curated) { const r = S.ratings[c.id]; if (r) out.push({ r, url: c.url, brief: title(c.briefId), text: `${str(c.label, 60)}: ${str(c.note, 220)} (Pinterest search “${str(c.query, 60)}”)` }); }
+  for (const u of S.refs) { const r = S.ratings["u_" + u.id]; if (r) out.push({ r, url: u.assetId ? "/_blob/" + u.assetId : "", brief: title(u.briefId), text: `${SRC_LABEL[u.source] || "Other"} screenshot${u.note ? ": " + str(u.note, 160) : ""}${u.review ? "; guideline review " + u.review.verdict + (u.review.borrow ? ", borrow: " + str(u.review.borrow, 160) : "") : ""}; colours ${arr(u.colors).map(x => x.hex).join(" ")}` }); }
+  return out;
+}
+async function learnTaste() {
+  const items = ratedItems();
+  if (items.length < 3 || !S.sample || !S.db || !S.me?.id) return;
+  S.busy.taste = true; S.err.taste = ""; render(true);
+  try {
+    const max = S.limits?.images?.maxCount || 0; const liked = items.filter(i => i.r === "like" && i.url), passed = items.filter(i => i.r === "pass" && i.url);
+    const pick = []; for (let i = 0; pick.length < max && (i < liked.length || i < passed.length); i++) { if (liked[i] && pick.length < max) pick.push(liked[i]); if (passed[i] && pick.length < max) pick.push(passed[i]); }
+    const blobs = []; const shown = [];
+    for (const it of pick) { try { const res = await fetch(it.url); if (res.ok) { blobs.push(await res.blob()); shown.push(it); } } catch {} }
+    const prompt = `You are learning a performance-ad designer's personal visual taste from reference images they liked or passed on. The output steers future visual research for them, so be specific and visual (composition, colour, casting, lighting, energy, layout, text treatment), never generic.
+
+BRAND GUIDELINE (context only; describe their taste within it)
+${guideText().split("\nDESIGNER'S TASTE")[0]}
+
+RATED REFERENCES
+${items.map((it, i) => `${i + 1}. [${it.r === "like" ? "LIKED" : "PASSED"}] brief “${it.brief}”: ${it.text}`).join("\n")}
+${shown.length ? `\nATTACHED IMAGES, in order: ${shown.map((it, i) => `image ${i + 1} = ${it.r === "like" ? "LIKED" : "PASSED"} (${str(it.text, 60)})`).join("; ")}` : ""}
+
+Reply with ONLY this JSON object:
+{"summary": "4-6 lines, each starting with '- ', on what this designer is drawn to and what they reject", "lookFor": ["up to 6 short visual traits to prioritise"], "avoid": ["up to 6 short visual traits to avoid"], "searchTerms": ["up to 8 Pinterest search phrases that would surface more of what they like for this brand"]}`;
+    const o = await S.sample.json(prompt, { images: blobs.length ? blobs : undefined, cache: false });
+    const lookFor = arr(o?.lookFor).slice(0, 6).map(x => str(x, 120)), avoid = arr(o?.avoid).slice(0, 6).map(x => str(x, 120)), searchTerms = arr(o?.searchTerms).slice(0, 8).map(x => str(x, 80)).filter(Boolean);
+    const summary = str(o?.summary, 1500) + (lookFor.length ? "\nLook for: " + lookFor.join("; ") : "") + (avoid.length ? "\nAvoid: " + avoid.join("; ") : "");
+    await S.db.collection("data/users/" + S.me.id).doc("taste").set({ summary, lookFor, avoid, searchTerms, likes: items.filter(i => i.r === "like").length, dislikes: items.filter(i => i.r === "pass").length, rated: items.length, updatedAt: Date.now() });
+    toast("Taste profile updated");
+  } catch (e) { S.err.taste = e?.code ? sampleErr(e) : "Couldn't save your taste profile. Try again."; }
+  finally { S.busy.taste = false; render(true); }
+}
+function tastePanel() {
+  const t = S.taste; const n = ratedItems().length; const busy = S.busy.taste;
+  return h("div", { class: "panel" },
+    h("div", { class: "spread", style: "align-items:center" },
+      h("div", null, h("h3", null, "Your taste profile"), h("p", { class: "muted", style: "font-size:.86rem" }, "Private to you. Claude uses it in research, reviews and art direction, and to suggest searches.")),
+      h("div", { class: "row" },
+        t?.updatedAt ? h("span", { class: "muted", style: "font-size:.82rem" }, "Learned from " + (t.rated || 0) + " ratings · " + fmtDate(t.updatedAt)) : null,
+        busy ? h("span", { class: "status" }, h("span", { class: "spin" }), "Learning from your ratings…")
+          : h("button", { class: "btn primary sm", type: "button", disabled: n < 3 || !S.sample, title: n < 3 ? "Rate at least 3 references first" : "", onclick: learnTaste }, t ? "Update taste profile" : "Learn my taste"))),
+    S.err.taste ? h("p", { style: "color:var(--bad)" }, S.err.taste) : null,
+    str(t?.summary).trim() ? h("p", { style: "white-space:pre-wrap;max-width:80ch" }, str(t.summary, 3000)) : h("p", { class: "muted", style: "font-size:.9rem" }, n < 3 ? `Rate at least 3 references with Like or Pass (${n} so far), then let Claude learn what you prefer.` : `${n} ratings ready. Click “Learn my taste”.`),
+    arr(t?.searchTerms).length ? h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("span", { class: "label" }, "More like what you like"), h("div", { class: "chips" }, t.searchTerms.map(q => h("a", { class: "chip", href: pinUrl(q), target: "_blank", rel: "noopener", style: "text-decoration:none;color:inherit" }, q + " ↗")))) : null);
+}
+function viewLibrary() {
+  const keyOf = (it) => it.kind === "curated" ? it.c.id : "u_" + it.u.id;
+  const all = [...S.curated.map(c => ({ kind: "curated", c, briefId: c.briefId })), ...S.refs.map(u => ({ kind: "upload", u, briefId: u.briefId }))];
+  const cnt = { all: all.length, like: 0, pass: 0, unrated: 0 };
+  for (const it of all) { const r = S.ratings[keyOf(it)]; if (r === "like") cnt.like++; else if (r === "pass") cnt.pass++; else cnt.unrated++; }
+  const f = S.libFilter; const keep = (it) => { const r = S.ratings[keyOf(it)]; return f === "all" || (f === "unrated" ? !r : r === f); };
+  const groups = []; const seen = new Set();
+  const order = [...S.briefs].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  for (const b of order) { const items = all.filter(it => it.briefId === b.id && keep(it)); seen.add(b.id); if (items.length) groups.push({ b, items }); }
+  const orphans = all.filter(it => !seen.has(it.briefId) && keep(it)); if (orphans.length) groups.push({ b: null, items: orphans });
+  const chip = (k, l) => h("button", { type: "button", class: "chip", "aria-pressed": f === k ? "true" : "false", onclick: () => { S.libFilter = k; render(true); } }, l + " · " + cnt[k]);
+  return [
+    dbBanner(),
+    h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:68ch" }, h("div", { class: "label" }, "Reference library"), h("h1", null, "Every reference, by brief"), h("p", { class: "muted" }, "Claude's Pinterest picks and your team's screenshots in one place. Like what you'd use, pass on what you wouldn't; Claude learns from both.")),
+    tastePanel(),
+    h("div", { class: "chips", role: "group", "aria-label": "Filter by rating" }, chip("all", "All"), chip("unrated", "To rate"), chip("like", "Liked"), chip("pass", "Passed")),
+    groups.length ? groups.map(({ b, items }) => h("section", { class: "libgroup" },
+      h("div", { class: "sechead" },
+        h("div", null, b ? h("h2", null, h("a", { href: "#b-" + b.id, style: "color:inherit;text-decoration:none" }, str(b.title, 120))) : h("h2", null, "Not linked to a brief"), b ? h("p", { class: "muted", style: "font-size:.86rem" }, [str(b.category, 40), b.liveText ? "live " + b.liveText : "", str(b.angle, 90)].filter(Boolean).join(" · ")) : null),
+        b ? h("a", { class: "btn sm", href: "#b-" + b.id, style: "text-decoration:none" }, "Open brief") : null),
+      h("div", { class: "refs" }, items.map(it => it.kind === "curated" ? curatedCard(it.c) : refCard(it.u)))))
+      : h("div", { class: "panel empty" }, h("h2", null, f === "all" ? "No references yet" : "Nothing here"), h("p", null, f === "all" ? "References appear here as Claude finds them and your team adds them." : "Try another filter."))
+  ];
+}
 
 // ---------- board ----------
 async function writeArtDirection(b, onBoard) {
@@ -840,7 +981,7 @@ ${briefText(b)}
 CHOSEN DIRECTION: ${d ? `${d.name}: ${d.concept} Hook: ${d.hook}. Composition: ${d.composition}. Palette: ${arr(d.palette).join(", ")}` : "none chosen; infer from references"}
 
 PINNED REFERENCES (${onBoard.length})
-${onBoard.map((r, i) => `${i + 1}. ${SRC_LABEL[r.source] || "Other"} — colours ${arr(r.colors).map(c => c.hex).join(" ")}${r.review ? "; verdict " + r.review.verdict + "; borrow: " + r.review.borrow : ""}${r.note ? "; note: " + str(r.note, 150) : ""}`).join("\n")}
+${onBoard.map((r, i) => r.curated ? `${i + 1}. Pinterest (liked by the designer) — ${r.label}: ${str(r.note, 200)}` : `${i + 1}. ${SRC_LABEL[r.source] || "Other"} — colours ${arr(r.colors).map(c => c.hex).join(" ")}${r.review ? "; verdict " + r.review.verdict + "; borrow: " + r.review.borrow : ""}${r.note ? "; note: " + str(r.note, 150) : ""}`).join("\n")}
 
 Reply with ONLY this JSON object:
 {"headline": "the visual idea in under 10 words", "summary": "2 sentences", "composition": "...", "color": "which brand hex codes, in what proportion", "casting": "...", "type": "headline/offer/CTA treatment and placement", "hook": "first frame / thumbnail", "doNot": ["3-5 items"], "deliverables": [{"format": "4:5", "notes": "..."}]}
@@ -855,7 +996,7 @@ Deliverables cover exactly the formats in the brief (or 4:5 and 9:16 if none).`;
 function tabBoard(b, onBoard) {
   const dirs = arr(b.research?.directions); const n = b.boardNote; const busy = S.busy["n" + b.id];
   const pal = arr(S.guide?.palette).filter(p => isHex(p.hex));
-  if (!onBoard.length) return h("div", { class: "panel empty" }, h("h2", null, "The board is empty"), h("p", null, "Add references, then pin the strongest ones. On-brand picks from Claude's review are pinned automatically."), h("button", { class: "btn primary", type: "button", onclick: () => go("b-" + b.id, "refs") }, "Go to References"));
+  if (!onBoard.length) return h("div", { class: "panel empty" }, h("h2", null, "The board is empty"), h("p", null, "Like Claude's picks or pin your team's references. Liked images land here automatically."), h("button", { class: "btn primary", type: "button", onclick: () => go("b-" + b.id, "refs") }, "Go to References"));
   return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
     h("div", { class: "spread", style: "align-items:center" },
       h("div", { class: "row" },
@@ -873,7 +1014,7 @@ function tabBoard(b, onBoard) {
         n.doNot.length ? h("div", null, h("span", { class: "label" }, "Do not"), h("ul", { class: "list", style: "font-size:.9rem" }, n.doNot.map(x => h("li", null, x)))) : null,
         n.deliverables.length ? h("div", null, h("span", { class: "label" }, "Deliverables"), h("ul", { class: "list", style: "font-size:.9rem" }, n.deliverables.map(x => h("li", null, h("b", { class: "mono" }, x.format), " ", x.notes)))) : null) : null),
     h("div", { class: "board" }, onBoard.map(r => h("figure", null, h("img", { src: r.assetId ? "/_blob/" + r.assetId : (safeUrl(r.url) || r.url), alt: "Mood board reference", loading: "lazy" }),
-      h("figcaption", null, h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + (SRC_LABEL[r.source] ? r.source : "other") }, SRC_LABEL[r.source] || "Other"), verdictPill(r.review)), r.review?.borrow ? h("span", null, r.review.borrow) : null)))));
+      h("figcaption", null, h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + (SRC_LABEL[r.source] ? r.source : "other") }, SRC_LABEL[r.source] || "Other"), r.curated ? h("span", { class: "pill ok" }, "Liked") : verdictPill(r.review)), r.curated ? h("span", null, r.note) : r.review?.borrow ? h("span", null, r.review.borrow) : null)))));
 }
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 function wrapText(x, text, maxW) { const words = str(text).split(/\s+/); const lines = []; let line = ""; for (const w of words) { const t = line ? line + " " + w : w; if (x.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; } if (line) lines.push(line); return lines; }
@@ -1059,7 +1200,7 @@ Reply with ONLY this JSON object (empty string or empty array where the guidelin
     h("div", { class: "panel" },
       h("div", { class: "spread", style: "align-items:center" }, h("h3", null, "Your taste profile"), S.taste?.rated ? h("span", { class: "row", style: "gap:6px" }, h("span", { class: "pill ok" }, (S.taste.likes || 0) + " liked"), h("span", { class: "pill bad" }, (S.taste.dislikes || 0) + " passed"), S.taste.updatedAt ? h("span", { class: "muted", style: "font-size:.82rem" }, "updated " + fmtDate(S.taste.updatedAt)) : null) : null),
       str(S.taste?.summary).trim() ? h("p", { style: "white-space:pre-wrap;max-width:75ch" }, str(S.taste.summary, 3000))
-        : h("p", { class: "muted", style: "font-size:.9rem" }, "Not learned yet. Rate references on the Figma boards with Like or Pass, then ask Claude to sync your ratings. Claude summarises what you prefer here, and research and image reviews start following it.")),
+        : h("p", { class: "muted", style: "font-size:.9rem" }, "Not learned yet. Like or pass on references, then open the Reference library and click “Update taste profile”. Claude summarises what you prefer here, and research and image reviews start following it.")),
     editable ? h("div", { class: "panel" },
       h("div", null, h("h3", null, "Import from your brand book"), h("p", { class: "muted", style: "font-size:.88rem" }, "Paste the guideline text, or choose screenshots of the brand-book pages (PDF pages exported as images work). Claude fills in the fields below for you to check.")),
       h("textarea", { id: "g_import", rows: 4, placeholder: "Paste guideline text here…" }),
@@ -1086,6 +1227,7 @@ Reply with ONLY this JSON object (empty string or empty array where the guidelin
 $("newBriefBtn").addEventListener("click", () => go("new"));
 $("guideNav").addEventListener("click", () => go("guide"));
 $("importNav").addEventListener("click", () => go("import"));
+$("libNav").addEventListener("click", () => go("library"));
 $("briefSearch").addEventListener("input", renderSide);
 $("briefCat").addEventListener("change", renderSide);
 readHash(); render(true);
@@ -1099,7 +1241,12 @@ readHash(); render(true);
   if (sample) { try { S.limits = await sample.limits(); } catch {} }
   if (!db) { S.loaded.guide = true; render(true); return; }
   const timer = setTimeout(() => { if (!S.loaded.briefs) { S.loaded.briefs = true; S.loaded.guide = true; render(true); } }, 10000);
-  db.doc("brand/taste").onSnapshot(s => { S.taste = s.exists ? s.data() : null; if (S.view === "guide") render(true); }, () => {});
+  db.collection("curated").orderBy("order", "asc").limit(2000).onSnapshot(s => { S.curated = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {});
+  if (S.me?.id) db.collection("data/users/" + S.me.id).limit(5000).onSnapshot(s => {
+    const r = {}; let taste = null;
+    for (const d of s.docs) { const x = d.data(); if (d.id === "taste") taste = x; else if (d.id.startsWith("r_") && (x.rating === "like" || x.rating === "pass")) r[d.id.slice(2)] = x.rating; }
+    S.ratings = r; S.taste = taste; render();
+  }, () => {});
   db.doc("brand/import").onSnapshot(s => { S.importCfg = s.exists ? s.data() : null; render(); }, () => {});
   db.doc("brand/thematics").onSnapshot(s => { S.thematics = s.exists ? (s.data().items || {}) : {}; }, () => {});
   db.doc("brand/guide").onSnapshot(s => { S.guide = s.exists ? s.data() : null; S.loaded.guide = true; render(); }, () => { S.loaded.guide = true; render(); });
