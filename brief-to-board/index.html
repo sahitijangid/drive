@@ -430,7 +430,7 @@ function renderSide() {
   $("guideNav").setAttribute("aria-current", S.view === "guide" ? "true" : "false");
   $("importNav").setAttribute("aria-current", S.view === "import" ? "true" : "false");
   $("libNav").setAttribute("aria-current", S.view === "library" ? "true" : "false");
-  const lm = $("libMeta"); lm.textContent = ""; const allRefs = S.curated.length + S.refs.length; const rv = Object.values(S.ratings);
+  const lm = $("libMeta"); lm.textContent = ""; const allRefs = S.curated.filter(c => !c.reserve).length + S.refs.length; const rv = Object.values(S.ratings);
   if (allRefs) lm.append(allRefs + " references", rv.length ? h("span", { class: "pill ok" }, rv.filter(x => x === "like").length + " liked") : null); else lm.append("All references, liked and passed");
   const im = $("importMeta"); im.textContent = "";
   if (S.importCfg?.fileId) im.append(h("span", { class: "pill accent" }, "Linked"), " " + (S.importCfg.lastImportAt ? "synced " + fmtDate(S.importCfg.lastImportAt) : "not synced yet"));
@@ -569,7 +569,7 @@ function viewBriefForm(existing) {
 function viewBrief(b) {
   const refs = S.refs.filter(r => r.briefId === b.id); const onBoard = boardItems(b);
   const st = STATUS[b.status] || STATUS.new;
-  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length + curatedFor(b.id).length]];
+  const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length + picksFor(b.id).shown.length]];
   if (S.tab === "edit") return viewBriefForm(b);
   if (!tabs.some(t => t[0] === S.tab)) S.tab = "brief";
   const body = S.tab === "brief" ? tabBrief(b) : S.tab === "research" ? tabResearch(b) : tabRefs(b, refs);
@@ -799,12 +799,14 @@ function tabRefs(b, refs) {
       h("input", { id: "upNote", type: "text", placeholder: "Why you saved it (optional)", value: S.upload.note, oninput: (e) => S.upload.note = e.target.value })),
     S.upload.queue ? h("span", { class: "status" }, h("span", { class: "spin" }), "Adding " + S.upload.queue + "…") : null, fileIn);
   S.pasteTarget = b;
-  const cur = curatedFor(b.id);
+  const pk = picksFor(b.id); const cur = pk.shown;
   return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
-    h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use; Claude learns your taste from it." : "No picks for this brief yet.")), cur.length ? rateSummary(cur.map(c => c.id)) : null),
+    h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use. Pass on one and a fresh pick takes its place" + (pk.slots ? " (" + pk.spare + " spare left)." : ".") : "No picks for this brief yet.")), cur.length || pk.passed.length ? rateSummary([...cur, ...pk.passed].map(c => c.id)) : null),
     S.curatedErr ? h("p", { style: "color:var(--bad)" }, S.curatedErr) : null,
+    pk.slots && cur.length < pk.slots ? h("div", { class: "notice warn" }, h("span", { style: "font-size:.9rem" }, "You've used all the spare picks for this brief. Ask Claude in chat for more references for " + str(b.title, 80) + ".")) : null,
     cur.length ? h("div", { class: "refs" }, cur.map(c => curatedCard(c)))
       : h("div", { class: "notice" }, h("div", { style: "display:flex;flex-direction:column;gap:4px;max-width:70ch" }, h("b", null, "Ask Claude for references"), h("span", { style: "font-size:.88rem" }, "In your Claude chat, say “find references for " + str(b.title, 80) + "”. Claude searches Pinterest using this brief's research and your taste profile, then adds the picks here."))),
+    pk.passed.length ? h("details", { style: "margin-top:4px" }, h("summary", { style: "cursor:pointer;color:var(--muted);font-size:.9rem;font-weight:600" }, "Passed (" + pk.passed.length + "). Click Passed again on a card to bring it back."), h("div", { class: "refs", style: "margin-top:12px" }, pk.passed.map(c => curatedCard(c)))) : null,
     h("details", { class: "panel", open: (S.ownOpen[b.id] ?? refs.length > 0) ? true : null, ontoggle: (e) => { S.ownOpen[b.id] = e.currentTarget.open; }, style: "margin-top:8px" },
       h("summary", { style: "cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap" }, h("span", { style: "display:flex;flex-direction:column;gap:2px" }, h("b", { style: "font-family:var(--display);font-size:1.1rem" }, "Your own screenshots" + (refs.length ? " · " + refs.length : "")), h("span", { class: "muted", style: "font-size:.84rem" }, "Optional. Paste finds from Instagram or Meta Ad Library; each is colour-matched and reviewed against your guideline.")), h("span", { class: "btn sm" }, refs.length ? "Show / hide" : "Add screenshots")),
     S.assets === null && S.capsChecked ? h("div", { class: "notice warn" }, h("span", null, "Your access level can't upload images. Ask the artifact owner for Contributor access.")) : drop,
@@ -853,6 +855,13 @@ function svgIcon(d) {
   const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); sv.append(p); return sv;
 }
 const curatedFor = (briefId) => S.curated.filter(c => c.briefId === briefId);
+// Claude's picks shown for a brief: the original slots, with each passed pick replaced by the next spare (per viewer).
+function picksFor(briefId) {
+  const all = curatedFor(briefId); const slots = all.filter(c => !c.reserve).length;
+  const shown = all.filter(c => S.ratings[c.id] !== "pass").slice(0, slots);
+  const ids = new Set(shown.map(c => c.id));
+  return { shown, passed: all.filter(c => S.ratings[c.id] === "pass"), spare: all.filter(c => !ids.has(c.id) && S.ratings[c.id] !== "pass").length, slots };
+}
 const blobSrc = (u) => /^\/_blob\/[0-9a-f]{32}$/.test(str(u)) ? u : "";
 function boardItems(b) {
   return [...S.refs.filter(r => r.briefId === b.id && r.onBoard),
@@ -862,6 +871,7 @@ async function setRating(key, kind, briefId, val) {
   if (!S.db || !S.me?.id) { toast("Sign in on claude.ai to rate references."); return; }
   const prev = S.ratings[key]; const ref = S.db.collection("data/users/" + S.me.id).doc("r_" + key);
   if (prev === val) delete S.ratings[key]; else S.ratings[key] = val;
+  if (kind === "curated" && val === "pass" && prev !== "pass") { const p = picksFor(briefId); toast(p.shown.length < p.slots ? "Passed. No spare picks left for this brief; ask Claude for more." : "Passed. Swapped in a new pick."); }
   render();
   try { if (prev === val) await ref.delete(); else await ref.set({ ref: key, kind, briefId: briefId || "", rating: val, at: Date.now() }); }
   catch { if (prev) S.ratings[key] = prev; else delete S.ratings[key]; render(); toast("Couldn't save that rating. Try again."); }
@@ -881,7 +891,7 @@ function curatedCard(c) {
   return h("article", { class: "ref" + (rt === "like" ? " liked" : rt === "pass" ? " passed" : "") },
     h("div", { class: "img" }, blobSrc(c.url) ? h("img", { src: c.url, alt: str(c.label, 80) + " reference", loading: "lazy" }) : null),
     h("div", { class: "body" },
-      h("span", { class: "tagpill" }, str(c.label, 60)),
+      h("div", { class: "row", style: "gap:6px" }, h("span", { class: "tagpill" }, str(c.label, 60)), c.reserve && S.ratings[c.id] !== "pass" ? h("span", { class: "pill accent" }, "New pick") : null),
       h("p", null, str(c.note, 300)),
       h("span", { class: "src pinterest" }, "Pinterest · “" + str(c.query, 80) + "”"),
       rateButtons(c.id, "curated", c.briefId)));
@@ -936,7 +946,8 @@ function tastePanel() {
 }
 function viewLibrary() {
   const keyOf = (it) => it.kind === "curated" ? it.c.id : "u_" + it.u.id;
-  const all = [...S.curated.map(c => ({ kind: "curated", c, briefId: c.briefId })), ...S.refs.map(u => ({ kind: "upload", u, briefId: u.briefId }))];
+  const surfaced = new Set(); for (const bid of new Set(S.curated.map(c => c.briefId))) { const p = picksFor(bid); for (const c of [...p.shown, ...p.passed]) surfaced.add(c.id); }
+  const all = [...S.curated.filter(c => surfaced.has(c.id)).map(c => ({ kind: "curated", c, briefId: c.briefId })), ...S.refs.map(u => ({ kind: "upload", u, briefId: u.briefId }))];
   const cnt = { all: all.length, like: 0, pass: 0, unrated: 0 };
   for (const it of all) { const r = S.ratings[keyOf(it)]; if (r === "like") cnt.like++; else if (r === "pass") cnt.pass++; else cnt.unrated++; }
   const f = S.libFilter; const keep = (it) => { const r = S.ratings[keyOf(it)]; return f === "all" || (f === "unrated" ? !r : r === f); };
