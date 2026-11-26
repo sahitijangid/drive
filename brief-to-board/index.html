@@ -323,6 +323,7 @@ function guideText() {
   for (const [k, lab] of [["photography", "Photography style"], ["lighting", "Lighting"], ["casting", "People / casting"], ["composition", "Composition & framing"], ["typography", "Type on image"], ["logo", "Logo usage"], ["tone", "Tone & mood"]]) if (g[k]) lines.push(lab + ": " + str(g[k], 1500));
   if (arr(g.dos).length) lines.push("Always: " + g.dos.map(x => str(x, 200)).join(" | "));
   if (arr(g.donts).length) lines.push("Never: " + g.donts.map(x => str(x, 200)).join(" | "));
+  if (str(S.taste?.summary).trim()) lines.push("\nDESIGNER'S TASTE (learned from their likes and passes on earlier reference boards; lean towards what they like and away from what they pass on, always inside the guideline):\n" + str(S.taste.summary, 3000));
   return lines.join("\n");
 }
 function briefText(b) {
@@ -1055,6 +1056,10 @@ Reply with ONLY this JSON object (empty string or empty array where the guidelin
   return [
     dbBanner(),
     h("div", { class: "spread" }, h("div", { style: "display:flex;flex-direction:column;gap:6px;max-width:66ch" }, h("div", { class: "label" }, "Brand guideline"), h("h1", null, "Image rules every result is checked against"), h("p", { class: "muted" }, "Research directions, palette-fit scores and Claude's image reviews all read from this page. " + (editable ? "Keep it current." : "Only editors can change it.")))),
+    h("div", { class: "panel" },
+      h("div", { class: "spread", style: "align-items:center" }, h("h3", null, "Your taste profile"), S.taste?.rated ? h("span", { class: "row", style: "gap:6px" }, h("span", { class: "pill ok" }, (S.taste.likes || 0) + " liked"), h("span", { class: "pill bad" }, (S.taste.dislikes || 0) + " passed"), S.taste.updatedAt ? h("span", { class: "muted", style: "font-size:.82rem" }, "updated " + fmtDate(S.taste.updatedAt)) : null) : null),
+      str(S.taste?.summary).trim() ? h("p", { style: "white-space:pre-wrap;max-width:75ch" }, str(S.taste.summary, 3000))
+        : h("p", { class: "muted", style: "font-size:.9rem" }, "Not learned yet. Rate references on the Figma boards with Like or Pass, then ask Claude to sync your ratings. Claude summarises what you prefer here, and research and image reviews start following it.")),
     editable ? h("div", { class: "panel" },
       h("div", null, h("h3", null, "Import from your brand book"), h("p", { class: "muted", style: "font-size:.88rem" }, "Paste the guideline text, or choose screenshots of the brand-book pages (PDF pages exported as images work). Claude fills in the fields below for you to check.")),
       h("textarea", { id: "g_import", rows: 4, placeholder: "Paste guideline text here…" }),
@@ -1094,6 +1099,7 @@ readHash(); render(true);
   if (sample) { try { S.limits = await sample.limits(); } catch {} }
   if (!db) { S.loaded.guide = true; render(true); return; }
   const timer = setTimeout(() => { if (!S.loaded.briefs) { S.loaded.briefs = true; S.loaded.guide = true; render(true); } }, 10000);
+  db.doc("brand/taste").onSnapshot(s => { S.taste = s.exists ? s.data() : null; if (S.view === "guide") render(true); }, () => {});
   db.doc("brand/import").onSnapshot(s => { S.importCfg = s.exists ? s.data() : null; render(); }, () => {});
   db.doc("brand/thematics").onSnapshot(s => { S.thematics = s.exists ? (s.data().items || {}) : {}; }, () => {});
   db.doc("brand/guide").onSnapshot(s => { S.guide = s.exists ? s.data() : null; S.loaded.guide = true; render(); }, () => { S.loaded.guide = true; render(); });
