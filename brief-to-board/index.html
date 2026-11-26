@@ -682,37 +682,22 @@ function tabResearch(b) {
   const runBar = h("div", { class: "notice" + (guideMissing ? " warn" : "") },
     h("div", { style: "min-width:0;flex:1 1 320px;display:flex;flex-direction:column;gap:4px" },
       h("b", null, r ? "Research from " + fmtDate(b.researchedAt) : "Run visual research"),
-      h("span", { style: "font-size:.88rem" }, guideMissing ? "No brand palette is set yet, so results can't be checked against your guideline. Set up the guideline first for on-brand directions." : "Claude reads the brief and your brand guideline, then proposes 3 art directions and the searches to run on each platform. Takes about a minute."),
+      h("span", { style: "font-size:.88rem" }, guideMissing ? "No brand palette is set yet, so results can't be checked against your guideline. Set up the guideline first for on-brand directions." : "Claude reads the brief and your brand guideline, then proposes 3 art directions. Takes about a minute."),
       busy ? h("span", { class: "status" }, h("span", { class: "spin" }), h("span", { id: "rprog" }, "Thinking through the brief…")) : null,
       err ? h("span", { style: "color:var(--bad);font-size:.88rem" }, err) : null),
     h("div", { class: "row" }, guideMissing ? h("button", { class: "btn sm", type: "button", onclick: () => go("guide") }, "Set up guideline") : null,
       busy ? h("button", { class: "btn", type: "button", onclick: () => S.ctl["r" + b.id]?.abort() }, "Stop")
         : h("button", { class: "btn primary", type: "button", disabled: !S.db, onclick: () => runResearch(b) }, r ? "Run again" : "Run research")));
   if (!r) return h("div", { style: "display:flex;flex-direction:column;gap:16px" }, runBar);
-  const searchCol = (key, title, items, link, label) => h("div", { class: "srccol" },
-    h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + key }, title), h("span", { class: "muted mono" }, items.length)),
-    items.length ? items.map(it => { const u = link(it); return u ? h("a", { class: "q", href: u, target: "_blank", rel: "noopener" }, h("b", null, label(it)), it.why ? h("span", null, it.why) : null) : null; }) : h("p", { class: "muted" }, "No searches suggested."));
+  const short = (t, n) => { const x = str(t).trim(); if (x.length <= n) return x; const cut = x.slice(0, n); const dot = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; ")); return (dot > n * 0.5 ? cut.slice(0, dot + 1) : cut.replace(/\s+\S*$/, "") + "…"); };
   return h("div", { style: "display:flex;flex-direction:column;gap:18px" },
     runBar,
-    r.insight ? h("div", { class: "panel" }, h("div", { class: "label" }, "The creative problem"), h("p", { style: "font-size:1.08rem;max-width:72ch" }, r.insight)) : null,
-    arr(r.conflicts).length ? h("div", { class: "notice warn" }, h("div", null, h("b", null, "Brief vs. guideline conflicts"), h("ul", { class: "list" }, r.conflicts.map(c => h("li", null, c))))) : null,
-    h("div", { style: "display:flex;flex-direction:column;gap:10px" }, h("h2", null, "Art directions"),
-      h("div", { class: "dirs" }, arr(r.directions).map((d, i) => h("article", { class: "dir" },
-        h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "label" }, "Direction " + String.fromCharCode(65 + i)), d.brandFit ? h("span", { class: "pill " + (d.brandFit.score >= 75 ? "ok" : d.brandFit.score >= 55 ? "warn" : "bad"), title: d.brandFit.notes }, "Brand fit " + d.brandFit.score) : null),
-        h("h3", null, d.name), arr(d.palette).length ? swatchBar(d.palette) : null,
-        h("p", null, d.concept),
-        [["Scroll-stopping hook", d.hook], ["Why it performs", d.whyItPerforms], ["Composition", d.composition], ["Lighting", d.lighting], ["Casting", d.casting], ["Type on image", d.typeOnImage], ["Formats", d.formatNotes]].filter(x => x[1]).map(([k, v]) => h("div", null, h("div", { class: "k" }, k), h("p", { style: "font-size:.9rem" }, v))),
-        arr(d.shotList).length ? h("div", null, h("div", { class: "k" }, "Shot list"), h("ul", { style: "font-size:.9rem" }, d.shotList.map(s => h("li", null, s)))) : null,
-        d.brandFit?.notes ? h("p", { class: "muted", style: "font-size:.82rem" }, "Guideline note: " + d.brandFit.notes) : null)))),
-    h("div", { style: "display:flex;flex-direction:column;gap:10px" },
-      h("div", { class: "spread", style: "align-items:flex-end" }, h("div", null, h("h2", null, "Where to look"), h("p", { class: "muted", style: "font-size:.88rem" }, "Each link opens the search on the platform. Screenshot what's relevant, then paste it into References.")), h("button", { class: "btn sm", type: "button", onclick: () => go("b-" + b.id, "refs") }, "Go to References")),
-      h("div", { class: "sources" },
-        searchCol("pinterest", "Pinterest", arr(r.search?.pinterest), it => pinUrl(it.query), it => it.query),
-        searchCol("meta", "Meta Ad Library", arr(r.search?.meta), it => metaUrl(it.query, b.market), it => it.query),
-        searchCol("instagram", "Instagram", arr(r.search?.instagram), it => igUrl(it.hashtag), it => "#" + it.hashtag))),
-    h("div", { class: "dirs" },
-      arr(r.patterns).length ? h("div", { class: "panel" }, h("div", { class: "label" }, "What winning ads in this space do"), h("ul", { class: "list" }, r.patterns.map(p => h("li", null, p)))) : null,
-      arr(r.avoid).length ? h("div", { class: "panel" }, h("div", { class: "label" }, "Avoid"), h("ul", { class: "list" }, r.avoid.map(p => h("li", null, p)))) : null));
+    h("div", { class: "sechead" }, h("h2", null, "Art directions"), h("button", { class: "btn sm", type: "button", onclick: () => go("b-" + b.id, "refs") }, "See Claude's picks")),
+    h("div", { class: "dirs" }, arr(r.directions).map((d, i) => h("article", { class: "dir" },
+      h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "label" }, "Direction " + String.fromCharCode(65 + i)), d.brandFit ? h("span", { class: "pill " + (d.brandFit.score >= 75 ? "ok" : d.brandFit.score >= 55 ? "warn" : "bad") }, "Brand fit " + d.brandFit.score) : null),
+      h("h3", null, d.name), arr(d.palette).length ? swatchBar(d.palette) : null,
+      h("p", null, short(d.concept, 260)),
+      d.hook ? h("div", null, h("div", { class: "k" }, "Hook"), h("p", { style: "font-size:.9rem" }, short(d.hook, 180))) : null))));
 }
 
 // ---------- references ----------
