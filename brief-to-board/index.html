@@ -689,6 +689,9 @@ function tabResearch(b) {
       busy ? h("button", { class: "btn", type: "button", onclick: () => S.ctl["r" + b.id]?.abort() }, "Stop")
         : h("button", { class: "btn primary", type: "button", disabled: !S.db, onclick: () => runResearch(b) }, r ? "Run again" : "Run research")));
   if (!r) return h("div", { style: "display:flex;flex-direction:column;gap:16px" }, runBar);
+  const searchCol = (key, title, items, link, label) => h("div", { class: "srccol" },
+    h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "src " + key }, title), h("span", { class: "muted mono" }, items.length)),
+    items.length ? items.map(it => { const u = link(it); return u ? h("a", { class: "q", href: u, target: "_blank", rel: "noopener" }, h("b", null, label(it)), it.why ? h("span", null, it.why) : null) : null; }) : h("p", { class: "muted" }, "No searches suggested."));
   const short = (t, n) => { const x = str(t).trim(); if (x.length <= n) return x; const cut = x.slice(0, n); const dot = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; ")); return (dot > n * 0.5 ? cut.slice(0, dot + 1) : cut.replace(/\s+\S*$/, "") + "…"); };
   return h("div", { style: "display:flex;flex-direction:column;gap:18px" },
     runBar,
@@ -697,7 +700,12 @@ function tabResearch(b) {
       h("div", { class: "spread", style: "align-items:center" }, h("span", { class: "label" }, "Direction " + String.fromCharCode(65 + i)), d.brandFit ? h("span", { class: "pill " + (d.brandFit.score >= 75 ? "ok" : d.brandFit.score >= 55 ? "warn" : "bad") }, "Brand fit " + d.brandFit.score) : null),
       h("h3", null, d.name), arr(d.palette).length ? swatchBar(d.palette) : null,
       h("p", null, short(d.concept, 260)),
-      d.hook ? h("div", null, h("div", { class: "k" }, "Hook"), h("p", { style: "font-size:.9rem" }, short(d.hook, 180))) : null))));
+      d.hook ? h("div", null, h("div", { class: "k" }, "Hook"), h("p", { style: "font-size:.9rem" }, short(d.hook, 180))) : null))),
+    h("div", { style: "display:flex;flex-direction:column;gap:10px" },
+      h("div", null, h("h2", null, "Reference links"), h("p", { class: "muted", style: "font-size:.88rem" }, "Each link opens the search on the platform. Screenshot what's useful and add it under References → Your own screenshots. Pinterest finds are already in Claude's picks.")),
+      h("div", { class: "sources", style: "grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))" },
+        searchCol("meta", "Meta Ad Library", arr(r.search?.meta), it => metaUrl(it.query, b.market), it => it.query),
+        searchCol("instagram", "Instagram", arr(r.search?.instagram), it => igUrl(it.hashtag), it => "#" + it.hashtag))));
 }
 
 // ---------- references ----------
