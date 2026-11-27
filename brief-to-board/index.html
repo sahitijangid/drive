@@ -1,34 +1,41 @@
-<title>Brief to Board</title>
+<title>Cult Brief to Board</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=Caveat:wght@700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a two-pane studio desk. Brief queue on the left, the working surface (brief, research, references, board) on the right. Stacks at phone width. */
+/* Layout: a two-pane studio desk in Cult's identity (Cult visual guidelines). Brief queue on the left, the working surface on the right. Stacks at phone width.
+   Colour: black/white base, Max Energy #F2FF00 as the action colour, Power Pop #FF5353 and Deep Charge #0095FF as accents, Energy Line gradient as the signature cue.
+   Type: Sora (headlines), Inter (utility), Caveat (one accent word). */
 :root {
-  --bg: #EDEFEA; --surface: #FFFFFF; --sunk: #F5F6F3; --ink: #16191C; --muted: #5C645E; --line: #D3D8D0;
-  --accent: #2F45C8; --accent-ink: #FFFFFF; --accent-soft: #E3E7FA;
-  --ok: #1D7447; --ok-soft: #DDF1E5; --warn: #94600A; --warn-soft: #F8ECD2; --bad: #A8231C; --bad-soft: #F8DEDB;
-  --pin: #C8102E; --meta: #1463D8; --ig: #B0306F; --other: #5C645E;
-  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
-  --body: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --bg: #F4F4F0; --surface: #FFFFFF; --sunk: #F9F9F6; --ink: #000000; --muted: #5A5A55; --line: #E0E0D9;
+  --accent: #000000; --accent-ink: #F2FF00; --accent-soft: #F2FF00;
+  --pop: #E8413F; --charge: #0079D1; --energy: linear-gradient(90deg, #F2FF00, #FF5353 50%, #0095FF);
+  --ok: #1D7447; --ok-soft: #DDF1E5; --warn: #8A5A00; --warn-soft: #FBF0CF; --bad: #C2302D; --bad-soft: #FFE1E0;
+  --pin: #C8102E; --meta: #0B63D6; --ig: #B0306F; --other: #5A5A55;
+  --display: "Sora", "Helvetica Neue", Arial, sans-serif;
+  --body: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --accentface: "Caveat", "Segoe Script", cursive;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
-  --r: 10px;
+  --r: 18px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #111412; --surface: #1A1E1B; --sunk: #151816; --ink: #E8EBE6; --muted: #98A199; --line: #2C332E;
-  --accent: #93A2FF; --accent-ink: #0C1033; --accent-soft: #232A4E;
-  --ok: #62C793; --ok-soft: #173326; --warn: #E2B04F; --warn-soft: #3A2E14; --bad: #F08A80; --bad-soft: #3D1D1A;
-  --pin: #FF7486; --meta: #79AEFF; --ig: #F282BF; --other: #98A199; color-scheme: dark } }
+  --bg: #0A0A0A; --surface: #151515; --sunk: #101010; --ink: #FFFFFF; --muted: #A2A29C; --line: #2A2A2A;
+  --accent: #F2FF00; --accent-ink: #000000; --accent-soft: #2B2E00;
+  --pop: #FF5353; --charge: #0095FF;
+  --ok: #62C793; --ok-soft: #14301F; --warn: #F2D24B; --warn-soft: #332B0C; --bad: #FF6B6B; --bad-soft: #3A1615;
+  --pin: #FF7486; --meta: #4DB3FF; --ig: #F282BF; --other: #A2A29C; color-scheme: dark } }
 :root[data-theme="dark"] {
-  --bg: #111412; --surface: #1A1E1B; --sunk: #151816; --ink: #E8EBE6; --muted: #98A199; --line: #2C332E;
-  --accent: #93A2FF; --accent-ink: #0C1033; --accent-soft: #232A4E;
-  --ok: #62C793; --ok-soft: #173326; --warn: #E2B04F; --warn-soft: #3A2E14; --bad: #F08A80; --bad-soft: #3D1D1A;
-  --pin: #FF7486; --meta: #79AEFF; --ig: #F282BF; --other: #98A199; color-scheme: dark }
+  --bg: #0A0A0A; --surface: #151515; --sunk: #101010; --ink: #FFFFFF; --muted: #A2A29C; --line: #2A2A2A;
+  --accent: #F2FF00; --accent-ink: #000000; --accent-soft: #2B2E00;
+  --pop: #FF5353; --charge: #0095FF;
+  --ok: #62C793; --ok-soft: #14301F; --warn: #F2D24B; --warn-soft: #332B0C; --bad: #FF6B6B; --bad-soft: #3A1615;
+  --pin: #FF7486; --meta: #4DB3FF; --ig: #F282BF; --other: #A2A29C; color-scheme: dark }
 
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.15; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-weight: 800; letter-spacing: -0.02em; }
 h1 { font-size: 1.9rem; } h2 { font-size: 1.35rem; } h3 { font-size: 1.05rem; }
 p { margin: 0; }
 a { color: var(--accent); }
@@ -41,8 +48,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
 .side { border-right: 1px solid var(--line); background: var(--sunk); padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; display: flex; flex-direction: column; gap: 18px; }
 .brand { display: flex; flex-direction: column; gap: 2px; }
-.brand h1 { font-size: 1.45rem; }
-.brand h1 span { color: var(--accent); }
+.brand h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+.brand h1 .cav { font-family: var(--accentface); font-weight: 700; font-size: 1.35em; color: var(--pop); letter-spacing: 0; }
+.brand .cult { display: inline-flex; align-self: flex-start; background: var(--ink); color: var(--bg); font-family: var(--display); font-weight: 800; font-size: .78rem; letter-spacing: .04em; padding: 3px 10px; border-radius: 99px; text-transform: lowercase; }
+.energy { height: 4px; border-radius: 4px; background: var(--energy); }
 .main { min-width: 0; padding-block: 24px 64px; padding-left: 28px; padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .wrap { max-width: 1120px; display: flex; flex-direction: column; gap: 22px; }
 
@@ -140,7 +149,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .ref.liked { border-color: var(--ok); }
 .ref.passed { opacity: .62; }
 .ref.passed:hover { opacity: 1; }
-.tagpill { align-self: flex-start; background: var(--ink); color: var(--bg); border-radius: 99px; padding: 2px 9px; font-size: .68rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.tagpill { align-self: flex-start; background: #000000; color: #F2FF00; border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; font-size: .68rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
 .sechead { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .libgroup { display: flex; flex-direction: column; gap: 12px; }
 .board { columns: 3 240px; column-gap: 12px; }
@@ -177,8 +186,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 <div class="app">
   <aside class="side" id="side">
     <div class="brand">
-      <h1>Brief <span>→</span> Board</h1>
+      <span class="cult">cult</span>
+      <h1>Brief to <span class="cav">Board</span></h1>
       <p class="muted" style="font-size:.84rem">Performance ad research desk</p>
+      <div class="energy" aria-hidden="true"></div>
     </div>
     <button class="btn primary" id="newBriefBtn" type="button">+ New brief</button>
     <div class="navlist">
