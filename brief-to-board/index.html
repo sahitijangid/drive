@@ -246,7 +246,7 @@ const S = {
   busy: {}, ctl: {}, err: {}, progress: {},
   upload: { source: "pinterest", link: "", note: "", queue: 0 },
   blobCache: new Map(), confirmDelete: null, profiles: {},
-  curated: [], ratings: {}, taste: null, libFilter: "all", ownOpen: {}
+  cur: {}, curLoading: {}, curWatch: {}, curAllStarted: false, libOpen: {}, ratings: {}, taste: null, libFilter: "all", ownOpen: {}
 };
 
 // ---------- helpers ----------
@@ -430,7 +430,7 @@ function renderSide() {
   $("guideNav").setAttribute("aria-current", S.view === "guide" ? "true" : "false");
   $("importNav").setAttribute("aria-current", S.view === "import" ? "true" : "false");
   $("libNav").setAttribute("aria-current", S.view === "library" ? "true" : "false");
-  const lm = $("libMeta"); lm.textContent = ""; const allRefs = S.curated.filter(c => !c.reserve).length + S.refs.length; const rv = Object.values(S.ratings);
+  const lm = $("libMeta"); lm.textContent = ""; const allRefs = allCurated().length + S.refs.length; const rv = Object.values(S.ratings);
   if (allRefs) lm.append(allRefs + " references", rv.length ? h("span", { class: "pill ok" }, rv.filter(x => x === "like").length + " liked") : null); else lm.append("All references, liked and passed");
   const im = $("importMeta"); im.textContent = "";
   if (S.importCfg?.fileId) im.append(h("span", { class: "pill accent" }, "Linked"), " " + (S.importCfg.lastImportAt ? "synced " + fmtDate(S.importCfg.lastImportAt) : "not synced yet"));
@@ -567,6 +567,7 @@ function viewBriefForm(existing) {
 
 // ---------- brief detail ----------
 function viewBrief(b) {
+  setTimeout(() => watchCurated(b.id), 0);
   const refs = S.refs.filter(r => r.briefId === b.id); const onBoard = boardItems(b);
   const st = STATUS[b.status] || STATUS.new;
   const tabs = [["brief", "Brief"], ["research", "Research"], ["refs", "References", refs.length + picksFor(b.id).shown.length]];
@@ -801,9 +802,8 @@ function tabRefs(b, refs) {
   S.pasteTarget = b;
   const pk = picksFor(b.id); const cur = pk.shown;
   return h("div", { style: "display:flex;flex-direction:column;gap:16px" },
-    h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use. Pass on one and a fresh pick takes its place" + (pk.slots ? " (" + pk.spare + " spare left)." : ".") : "No picks for this brief yet.")), cur.length || pk.passed.length ? rateSummary([...cur, ...pk.passed].map(c => c.id)) : null),
+    h("div", { class: "sechead" }, h("div", null, h("h2", null, "Claude's picks"), h("p", { class: "muted", style: "font-size:.88rem" }, cur.length ? cur.length + " references found on Pinterest for this brief. Like what you'd use and pass on what you wouldn't; Claude learns your taste from both." : "No picks for this brief yet.")), cur.length || pk.passed.length ? rateSummary([...cur, ...pk.passed].map(c => c.id)) : null),
     S.curatedErr ? h("p", { style: "color:var(--bad)" }, S.curatedErr) : null,
-    pk.slots && cur.length < pk.slots ? h("div", { class: "notice warn" }, h("span", { style: "font-size:.9rem" }, "You've used all the spare picks for this brief. Ask Claude in chat for more references for " + str(b.title, 80) + ".")) : null,
     cur.length ? h("div", { class: "refs" }, cur.map(c => curatedCard(c)))
       : h("div", { class: "notice" }, h("div", { style: "display:flex;flex-direction:column;gap:4px;max-width:70ch" }, h("b", null, "Ask Claude for references"), h("span", { style: "font-size:.88rem" }, "In your Claude chat, say “find references for " + str(b.title, 80) + "”. Claude searches Pinterest using this brief's research and your taste profile, then adds the picks here."))),
     pk.passed.length ? h("details", { style: "margin-top:4px" }, h("summary", { style: "cursor:pointer;color:var(--muted);font-size:.9rem;font-weight:600" }, "Passed (" + pk.passed.length + "). Click Passed again on a card to bring it back."), h("div", { class: "refs", style: "margin-top:12px" }, pk.passed.map(c => curatedCard(c)))) : null,
@@ -854,13 +854,37 @@ function svgIcon(d) {
   sv.setAttribute("viewBox", "0 0 24 24"); sv.setAttribute("fill", "none"); sv.setAttribute("stroke", "currentColor"); sv.setAttribute("stroke-width", "2.2"); sv.setAttribute("stroke-linecap", "round"); sv.setAttribute("stroke-linejoin", "round"); sv.setAttribute("aria-hidden", "true");
   const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); sv.append(p); return sv;
 }
-const curatedFor = (briefId) => S.curated.filter(c => c.briefId === briefId);
-// Claude's picks shown for a brief: the original slots, with each passed pick replaced by the next spare (per viewer).
+// Claude's picks are loaded per brief (a single query is capped at 1000 documents).
+const sortPicks = (docs) => docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+function loadCurated(bid) {
+  if (!S.db || !bid || S.cur[bid] || S.curLoading[bid]) return;
+  S.curLoading[bid] = true;
+  S.db.collection("curated").where("briefId", "==", bid).limit(1000).get()
+    .then(snap => { S.cur[bid] = sortPicks(snap.docs); S.curatedErr = ""; })
+    .catch(() => { S.curatedErr = "Claude's picks couldn't load. Reload the page to try again."; })
+    .finally(() => { S.curLoading[bid] = false; render(); });
+}
+function watchCurated(bid) {
+  if (S.curWatch.bid === bid) return;
+  if (S.curWatch.off) { try { S.curWatch.off(); } catch {} }
+  S.curWatch = { bid, off: null };
+  if (!S.db || !bid) return;
+  S.curWatch.off = S.db.collection("curated").where("briefId", "==", bid).limit(1000).onSnapshot(snap => { S.cur[bid] = sortPicks(snap.docs); S.curatedErr = ""; render(); }, () => { S.curatedErr = "Claude's picks couldn't load. Reload the page to try again."; render(); });
+}
+async function loadAllCurated() {
+  if (S.curAllStarted || !S.db) return; S.curAllStarted = true;
+  const ids = [...S.briefs].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")).map(b => b.id);
+  for (let i = 0; i < ids.length; i += 4) {
+    await Promise.all(ids.slice(i, i + 4).filter(id => !S.cur[id]).map(id => S.db.collection("curated").where("briefId", "==", id).limit(1000).get().then(snap => { S.cur[id] = sortPicks(snap.docs); }).catch(() => {})));
+    render();
+  }
+}
+const allCurated = () => Object.values(S.cur).flat();
+const curatedFor = (briefId) => { if (!S.cur[briefId]) setTimeout(() => loadCurated(briefId), 0); return S.cur[briefId] || []; };
+// Claude's picks for a brief: everything not passed by this viewer is shown; passed ones go to the Passed list.
 function picksFor(briefId) {
-  const all = curatedFor(briefId); const slots = all.filter(c => !c.reserve).length;
-  const shown = all.filter(c => S.ratings[c.id] !== "pass").slice(0, slots);
-  const ids = new Set(shown.map(c => c.id));
-  return { shown, passed: all.filter(c => S.ratings[c.id] === "pass"), spare: all.filter(c => !ids.has(c.id) && S.ratings[c.id] !== "pass").length, slots };
+  const all = curatedFor(briefId);
+  return { shown: all.filter(c => S.ratings[c.id] !== "pass"), passed: all.filter(c => S.ratings[c.id] === "pass") };
 }
 const blobSrc = (u) => /^\/_blob\/[0-9a-f]{32}$/.test(str(u)) ? u : "";
 function boardItems(b) {
@@ -871,7 +895,7 @@ async function setRating(key, kind, briefId, val) {
   if (!S.db || !S.me?.id) { toast("Sign in on claude.ai to rate references."); return; }
   const prev = S.ratings[key]; const ref = S.db.collection("data/users/" + S.me.id).doc("r_" + key);
   if (prev === val) delete S.ratings[key]; else S.ratings[key] = val;
-  if (kind === "curated" && val === "pass" && prev !== "pass") { const p = picksFor(briefId); toast(p.shown.length < p.slots ? "Passed. No spare picks left for this brief; ask Claude for more." : "Passed. Swapped in a new pick."); }
+  if (kind === "curated" && val === "pass" && prev !== "pass") toast("Passed. Moved to the Passed list below.");
   render();
   try { if (prev === val) await ref.delete(); else await ref.set({ ref: key, kind, briefId: briefId || "", rating: val, at: Date.now() }); }
   catch { if (prev) S.ratings[key] = prev; else delete S.ratings[key]; render(); toast("Couldn't save that rating. Try again."); }
@@ -891,7 +915,7 @@ function curatedCard(c) {
   return h("article", { class: "ref" + (rt === "like" ? " liked" : rt === "pass" ? " passed" : "") },
     h("div", { class: "img" }, blobSrc(c.url) ? h("img", { src: c.url, alt: str(c.label, 80) + " reference", loading: "lazy" }) : null),
     h("div", { class: "body" },
-      h("div", { class: "row", style: "gap:6px" }, h("span", { class: "tagpill" }, str(c.label, 60)), c.reserve && S.ratings[c.id] !== "pass" ? h("span", { class: "pill accent" }, "New pick") : null),
+      h("div", { class: "row", style: "gap:6px" }, h("span", { class: "tagpill" }, str(c.label, 60))),
       h("p", null, str(c.note, 300)),
       h("span", { class: "src pinterest" }, "Pinterest · “" + str(c.query, 80) + "”"),
       rateButtons(c.id, "curated", c.briefId)));
@@ -899,7 +923,7 @@ function curatedCard(c) {
 function ratedItems() {
   const title = (id) => str(S.briefs.find(b => b.id === id)?.title, 80) || "Unassigned";
   const out = [];
-  for (const c of S.curated) { const r = S.ratings[c.id]; if (r) out.push({ r, url: c.url, brief: title(c.briefId), text: `${str(c.label, 60)}: ${str(c.note, 220)} (Pinterest search “${str(c.query, 60)}”)` }); }
+  for (const c of allCurated()) { const r = S.ratings[c.id]; if (r) out.push({ r, url: c.url, brief: title(c.briefId), text: `${str(c.label, 60)}: ${str(c.note, 220)} (Pinterest search “${str(c.query, 60)}”)` }); }
   for (const u of S.refs) { const r = S.ratings["u_" + u.id]; if (r) out.push({ r, url: u.assetId ? "/_blob/" + u.assetId : "", brief: title(u.briefId), text: `${SRC_LABEL[u.source] || "Other"} screenshot${u.note ? ": " + str(u.note, 160) : ""}${u.review ? "; guideline review " + u.review.verdict + (u.review.borrow ? ", borrow: " + str(u.review.borrow, 160) : "") : ""}; colours ${arr(u.colors).map(x => x.hex).join(" ")}` }); }
   return out;
 }
@@ -946,8 +970,8 @@ function tastePanel() {
 }
 function viewLibrary() {
   const keyOf = (it) => it.kind === "curated" ? it.c.id : "u_" + it.u.id;
-  const surfaced = new Set(); for (const bid of new Set(S.curated.map(c => c.briefId))) { const p = picksFor(bid); for (const c of [...p.shown, ...p.passed]) surfaced.add(c.id); }
-  const all = [...S.curated.filter(c => surfaced.has(c.id)).map(c => ({ kind: "curated", c, briefId: c.briefId })), ...S.refs.map(u => ({ kind: "upload", u, briefId: u.briefId }))];
+  setTimeout(loadAllCurated, 0);
+  const all = [...allCurated().map(c => ({ kind: "curated", c, briefId: c.briefId })), ...S.refs.map(u => ({ kind: "upload", u, briefId: u.briefId }))];
   const cnt = { all: all.length, like: 0, pass: 0, unrated: 0 };
   for (const it of all) { const r = S.ratings[keyOf(it)]; if (r === "like") cnt.like++; else if (r === "pass") cnt.pass++; else cnt.unrated++; }
   const f = S.libFilter; const keep = (it) => { const r = S.ratings[keyOf(it)]; return f === "all" || (f === "unrated" ? !r : r === f); };
@@ -965,7 +989,8 @@ function viewLibrary() {
       h("div", { class: "sechead" },
         h("div", null, b ? h("h2", null, h("a", { href: "#b-" + b.id, style: "color:inherit;text-decoration:none" }, str(b.title, 120))) : h("h2", null, "Not linked to a brief"), b ? h("p", { class: "muted", style: "font-size:.86rem" }, [str(b.category, 40), b.liveText ? "live " + b.liveText : "", str(b.angle, 90)].filter(Boolean).join(" · ")) : null),
         b ? h("a", { class: "btn sm", href: "#b-" + b.id, style: "text-decoration:none" }, "Open brief") : null),
-      h("div", { class: "refs" }, items.map(it => it.kind === "curated" ? curatedCard(it.c) : refCard(it.u)))))
+      h("div", { class: "refs" }, (S.libOpen[b?.id || "_"] ? items : items.slice(0, 12)).map(it => it.kind === "curated" ? curatedCard(it.c) : refCard(it.u))),
+      items.length > 12 ? h("div", null, h("button", { class: "btn sm", type: "button", onclick: () => { const k = b?.id || "_"; S.libOpen[k] = !S.libOpen[k]; render(true); } }, S.libOpen[b?.id || "_"] ? "Show fewer" : "Show all " + items.length)) : null))
       : h("div", { class: "panel empty" }, h("h2", null, f === "all" ? "No references yet" : "Nothing here"), h("p", null, f === "all" ? "References appear here as Claude finds them and your team adds them." : "Try another filter."))
   ];
 }
@@ -1248,7 +1273,7 @@ readHash(); render(true);
   if (sample) { try { S.limits = await sample.limits(); } catch {} }
   if (!db) { S.loaded.guide = true; render(true); return; }
   const timer = setTimeout(() => { if (!S.loaded.briefs) { S.loaded.briefs = true; S.loaded.guide = true; render(true); } }, 10000);
-  db.collection("curated").orderBy("order", "asc").limit(1000).onSnapshot(s => { S.curated = s.docs.map(d => ({ id: d.id, ...d.data() })); S.curatedErr = ""; render(); }, () => { S.curatedErr = "Claude's picks couldn't load. Reload the page to try again."; render(); });
+
   if (S.me?.id) db.collection("data/users/" + S.me.id).limit(1000).onSnapshot(s => {
     const r = {}; let taste = null;
     for (const d of s.docs) { const x = d.data(); if (d.id === "taste") taste = x; else if (d.id.startsWith("r_") && (x.rating === "like" || x.rating === "pass")) r[d.id.slice(2)] = x.rating; }
